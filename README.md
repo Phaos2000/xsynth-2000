@@ -2,7 +2,7 @@
 
 Developed by Phaos · https://phaos.neocities.org/ · phaos2000@pm.me
 
-Xsynth 2000 is a digital synthesizer developed from Steve J. Brookes' Xsynth
+Xsynth 2000 is a digital synthesizer developed into something new from Steve J. Brookes' Xsynth
 1.0.2 (1999), with a Windows x64 VST3 implementation and a retro graphical
 interface. This branch contains the v0.1.1 sources. The original `v0.1.0` tag
 and release downloads remain preserved as a historical checkpoint.
