@@ -18,7 +18,7 @@ int main() {
       xs::Engine e;e.reset(48000);e.set(24,.4);e.set(25,1);
       if(c.voices){e.set(xs::VoiceMode,1);int k=0;while(xs::VoiceCounts[k]!=c.voices)++k;e.set(xs::Voices,k/5.);}
       e.set(xs::Engine1,c.clean==2);e.set(xs::Engine2,c.clean>0);e.set(xs::XMode,c.mode/2.);e.set(xs::XDepth,c.mode?.2:0);
-      if(c.matrix)for(int route=0;route<6;++route){int id=xs::MatrixFirst+route*3;const int source[]={1,2,3,4,9,10},destination[]={0,3,8,13,1,6};e.set(id,source[route]/10.);e.set(id+1,destination[route]/17.);e.set(id+2,.6);}
+      if(c.matrix)for(int route=0;route<6;++route){int id=xs::MatrixFirst+route*3;const int source[]={1,2,3,4,9,10},destination[]={0,3,8,13,1,6};e.set(id,source[route]/10.);e.set(id+1,destination[route]/double(xs::LegacyDestinationCount-1));e.set(id+2,.6);}
       for(int n=0;n<std::max(1,c.voices);++n)e.note(36+n,true,.8f);
       for(int i=0;i<4800;++i)e.next();
       auto start=std::chrono::steady_clock::now();double sum=0;

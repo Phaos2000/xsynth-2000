@@ -8,6 +8,8 @@
 #include <vector>
 #include "ExpansionParameters.h"
 #include "DigitalOscillator.h"
+#include "Transitions.h"
+#include "HighCutFilter.h"
 
 namespace xs {
 
@@ -133,15 +135,18 @@ inline std::vector<uint8_t> exportPatch(const State &s) {
   return b;
 }
 constexpr size_t StateBytes = 8 + Count * 8;
-// Version 2 changes only the interpretation of VCO pitch normalization.
+// V2 changes VCO pitch normalization; V3 migrates the modulation destination enumeration.
 // V1 ratio=2^(2*n); V2 ratio=.25*2^(4*n). Old n becomes .5+.5*n.
 inline int stateValueCount(const uint8_t* header) {
   if(!std::memcmp(header,"XSV3\1\0\0\0",8))return LegacyCount;
-  if(!std::memcmp(header,"XSED\1\0\0\0",8)||!std::memcmp(header,"XSED\2\0\0\0",8))return Count;
+  if(!std::memcmp(header,"XSED\6\0\0\0",8))return Count;
+  if(!std::memcmp(header,"XSED\5\0\0\0",8))return PreFourLfoCount;
+  if(!std::memcmp(header,"XSED\4\0\0\0",8))return PreUnisonCount;
+  if(!std::memcmp(header,"XSED\1\0\0\0",8)||!std::memcmp(header,"XSED\2\0\0\0",8)||!std::memcmp(header,"XSED\3\0\0\0",8))return PreviousCount;
   return 0;
 }
 inline std::vector<uint8_t> encode(const State &s) {
-  std::vector<uint8_t> b = {'X', 'S', 'E', 'D', 2, 0, 0, 0};
+  std::vector<uint8_t> b = {'X', 'S', 'E', 'D', 6, 0, 0, 0};
   for (auto v : s) {
     uint64_t n;
     std::memcpy(&n, &v, 8);
@@ -164,6 +169,13 @@ inline bool decode(const uint8_t *b, size_t size, State &out) {
       return false;
   }
   if(b[4]==1) { s[0]=.5+.5*s[0];s[2]=.5+.5*s[2]; }
+  // V1/V2 retain their exact legacy normalized values. V3 used index/40:
+  // migrate to a canonical legacy value where possible, otherwise an override.
+  if(b[4]==3 && count==PreviousCount)for(int slot=0;slot<6;++slot){
+    int id=legacyDestinationId(slot),destination=int(std::round(s[id]*(EstablishedDestinationCount-1)));
+    s[id]=destination<LegacyDestinationCount?destination/double(LegacyDestinationCount-1):0.;
+    s[ExpandedDestinationFirst+slot]=destination<LegacyDestinationCount?0.:(destination+1)/double(EstablishedDestinationCount);
+  }
   out = s;
   return true;
 }
@@ -180,11 +192,20 @@ class LegacyEngine {
   };
   inline static const Tables tables{};
   std::array<bool, 128> notes{};
+  float highFilter[4]{},lastFilterHz=0;
   float pos[3]{}, eg[2]{}, d[4]{}, pitch = 0, previousPitch = 0, baseFilter = 0;
   int phase[2]{}, previousNote = 0, tick = 0;
   bool active = false, sync[3]{};
   uint32_t dirtyMask = (1u<<24)-1;
-  float p[24]{}, rates[2][3]{}, glide = 1;
+  float p[24]{}, rates[2][3]{}, glide = 1,lastFilterCoefficient=0;
+  SignalBlend<6> waveform[2];SignalBlend<2> engines[2];
+  float evaluatedWave(float phase,int kind,float pw) const {
+    float w=phase*100;int i=std::min(99,int(w));float f=w-i;
+    switch(kind){case 0:return tables.sine[i]+(tables.sine[i+1]-tables.sine[i])*f;
+      case 1:return tables.tri[i]+(tables.tri[i+1]-tables.tri[i])*f;
+      case 2:return 2*phase-1;case 3:return 1-2*phase;
+      case 4:return phase<.5f?1.f:-1.f;default:return phase<pw?1.f:-1.f;}
+  }
   float wave(int osc, float frequency, float dt, int kind, float pw) {
     pos[osc] += dt * frequency;
     if (pos[osc] >= 1.f) {
@@ -194,18 +215,17 @@ class LegacyEngine {
     float p = pos[osc], w = p * 100;
     int i = std::min(99, int(w));
     float f = w - i;
-    if(osc<2 && state[Engine1+osc]>=.5) {
+    if(osc<2 && (waveform[osc].remaining || engines[osc].remaining)) {
       float sample=0;
-      switch(kind) {
-      case 0:sample=tables.sine[i]+(tables.sine[i+1]-tables.sine[i])*f;break;
-      case 1:sample=tables.tri[i]+(tables.tri[i+1]-tables.tri[i])*f;break;
-      case 2:sample=2*p-1;break;
-      case 3:sample=1-2*p;break;
-      case 4:sample=p<.5f?1.f:-1.f;break;
-      default:sample=p<pw?1.f:-1.f;break;
+      for(int k=0;k<6;++k)if(waveform[osc].weights[k]!=0) {
+        float raw=evaluatedWave(p,k,pw),clean=oscillator::clean(p,dt*frequency,k,pw,raw);
+        sample+=waveform[osc].weights[k]*(engines[osc].weights[0]*raw+engines[osc].weights[1]*clean);
       }
-      return oscillator::clean(p,dt*frequency,kind,pw,sample);
+      return sample;
     }
+    if(osc<2 && state[Engine1+osc]>=.5)
+      return oscillator::clean(p,dt*frequency,kind,pw,evaluatedWave(p,kind,pw));
+
     switch (kind) {
     case 0:
       return tables.sine[i] + (tables.sine[i + 1] - tables.sine[i]) * f;
@@ -222,6 +242,15 @@ class LegacyEngine {
     }
   }
 
+protected:
+  struct Continuity {float oscillator[2],filter[4],highFilter[4],env[2],hz,lfo,coefficient,highHz;int stage[2];bool active;};
+  Continuity continuity() const {
+    Continuity c{};std::copy_n(pos,2,c.oscillator);std::copy_n(d,4,c.filter);
+    std::copy_n(eg,2,c.env);std::copy_n(phase,2,c.stage);
+    std::copy_n(highFilter,4,c.highFilter);c.highHz=lastFilterHz;
+    c.hz=pitch;c.lfo=pos[2];c.coefficient=lastFilterCoefficient;c.active=active;return c;
+  }
+
 public:
   State state = defaults();
   LegacyEngine() = default;
@@ -235,12 +264,13 @@ public:
     notes.fill(false);
     std::fill_n(pos, 3, 0.f);
     std::fill_n(eg, 2, 0.f);
-    std::fill_n(d, 4, 0.f);
+    std::fill_n(d, 4, 0.f);std::fill_n(highFilter,4,0.f);
     std::fill_n(phase, 2, 0);
     std::fill_n(sync, 3, false);
     pitch = previousPitch = baseFilter = 0;
     previousNote = tick = 0;
     active = false;
+    for(int o=0;o<2;++o){waveform[o].reset(discrete(24+o,state[24+o]));engines[o].reset(state[Engine1+o]>=.5);}
   }
   void note(int n, bool down) {
     if (n >= 0 && n < 128) {
@@ -257,6 +287,9 @@ public:
       v=stepped(id,v);
       if(state[id]==v) return;
       state[id] = v;
+      int samples=std::max(1,int(sr*.002));
+      if(id==24||id==25){int o=id-24;if(active)waveform[o].select(discrete(id,v),samples);else waveform[o].reset(discrete(id,v));}
+      if(id==Engine1||id==Engine2){int o=id-Engine1;if(active)engines[o].select(v>=.5,samples);else engines[o].reset(v>=.5);}
       if(id<24)dirtyMask|=1u<<id;
       if (id == 30 || id == 31)
         tick = 0;
@@ -298,13 +331,14 @@ public:
           phase[0] = phase[1] = 2;
         else {
           active = false;
-          std::fill_n(d, 4, 0.f);
+          std::fill_n(d, 4, 0.f);std::fill_n(highFilter,4,0.f);
         }
       }
     }
     tick = (tick + 1) % 256;
     if (!active)
       return 0;
+    for(int o=0;o<2;++o){waveform[o].advance();engines[o].advance();}
     float dt = float(1 / sr);
     float lfo = wave(2, p[4], dt, int(std::round(state[26] * 5)), .25f);
     for (int e = 0; e < 2; ++e) {
@@ -315,22 +349,26 @@ public:
       if (phase[e] == 0 && eg[e] > .99f)
         phase[e] = 1;
     }
-    float o1 = wave(0, p[0] * pitch, dt, int(std::round(state[24] * 5)), p[1]),
+    float directPitch=std::max(0.f,1+lfo*p[5]);
+    float o1 = wave(0, p[0] * pitch * directPitch, dt, int(std::round(state[24] * 5)), p[1]),
           dt2 = dt;
     if (state[27] >= .5 && sync[0]) {
       sync[0] = false;
       pos[1] = 0;
-      dt2 = pos[0] / (p[0] * pitch);
+      dt2 = pos[0] / std::max(.01f,p[0] * pitch * directPitch);
     }
     float o2 = wave(1,
                     p[2] * pitch * (1 + eg[0] * p[13]) * (1 + eg[1] * p[19]) *
-                        (1 + lfo * p[5]),
+                        directPitch,
                     dt2, int(std::round(state[25] * 5)), p[3]);
     float input = (1 - p[7]) * o1 + p[7] * o2;
     float cutoff =
-        std::min(.825f, (baseFilter * p[21] + baseFilter * p[14] * eg[0] +
+        std::max(0.f, (baseFilter * p[21] + baseFilter * p[14] * eg[0] +
                          baseFilter * p[20] * eg[1]) *
                             (1 + lfo * p[6]));
+    float filterHz=cutoff*float(sr)/(2*float(Pi));lastFilterHz=filterHz;
+    cutoff=std::min(.825f,cutoff);
+    lastFilterCoefficient=cutoff;
     d[1] += cutoff * d[0];
     float high = input - d[1] - p[22] * d[0];
     d[0] += cutoff * high;
@@ -341,12 +379,15 @@ public:
       d[2] += cutoff * high;
       out = d[3];
     }
+    float highInput=input,gHigh=highcut::coefficient(filterHz,float(sr)),outputs[4]{};
+    for(int stage=0;stage<(state[28]>=.5?2:1);++stage){highcut::stage(highInput,gHigh,p[22],highFilter+2*stage,outputs);highInput=outputs[0];}
+    float blend=highcut::weight(filterHz,float(sr));out=out*(1-blend)+highInput*blend;
     float w = p[23] * 100;
     int k = std::min(99, int(w));
     float gain = tables.vol[k] + (tables.vol[k + 1] - tables.vol[k]) * (w - k);
     out *= eg[0] * gain;
     if (!std::isfinite(out)) {
-      std::fill_n(d, 4, 0.f);
+      std::fill_n(d, 4, 0.f);std::fill_n(highFilter,4,0.f);
       return 0;
     }
     return state[29] >= .5 ? std::clamp(out, -1.f, 1.f) : 0.f;

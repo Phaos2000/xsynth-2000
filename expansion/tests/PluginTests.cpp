@@ -197,6 +197,66 @@ int main(int argc, char **argv) {
       // Controller values used by the GUI remain an independent host-owned view.
       MemoryStream ui(serialized.data(),serialized.size());controller->setComponentState(&ui);
     }
+    // Exercise public VST3 queues, not merely state migration or engine setters.
+    for(int slot=0;slot<6;++slot)for(int block:{1,7,32,128,512})for(int expanded=0;expanded<2;++expanded)
+      for(int destination=0;destination<(expanded?41:18);++destination){
+        auto initial=xs::defaults();initial[xs::VoiceMode]=1.;initial[23]=.1;
+        initial[xs::MatrixFirst+slot*3]=1.;initial[xs::MatrixFirst+slot*3+2]=.6;
+        auto bytes=xs::encode(initial);MemoryStream restored(bytes.data(),bytes.size());
+        check(component->setState(&restored)==kResultOk,"Modern fixture restore");
+        component->setActive(true);processor->setProcessing(true);
+        xs::Engine expected;expected.state=initial;expected.reset(44100);
+        int legacy=xs::legacyDestinationId(slot),extension=xs::ExpandedDestinationFirst+slot;
+        for(int pass=0;pass<3;++pass){
+          ParameterChanges changes;int32 point=0;
+          // Insert legacy queue first: equal-offset precedence must be independent of queue order.
+          if(!expanded)changes.addParameterData(xs::hostId(legacy),point)->addPoint(block-1,destination/17.,point);
+          changes.addParameterData(xs::hostId(extension),point)->addPoint(0,expanded?(destination+1)/41.:1.,point);
+          EventList events;if(pass==0){Event event{};event.type=Event::kNoteOnEvent;event.noteOn.pitch=60;event.noteOn.velocity=.7;events.addEvent(event);}
+          float l[512]{},r[512]{};float *channels[]={l,r};AudioBusBuffers bus{};bus.numChannels=2;bus.channelBuffers32=channels;
+          ProcessData data{};data.numSamples=block;data.symbolicSampleSize=kSample32;data.numOutputs=1;data.outputs=&bus;data.inputEvents=&events;data.inputParameterChanges=&changes;
+          check(processor->process(data)==kResultOk,"Destination host automation processing");
+          for(int sample=0;sample<block;++sample){
+            if(sample==0)expected.set(extension,expanded?(destination+1)/41.:1.);
+            if(!expanded && sample==block-1)expected.set(legacy,destination/17.);
+            if(pass==0&&sample==0)expected.note(60,true,.7);
+            check(std::abs(l[sample]-expected.next())<1.e-7,"Destination queue timing/audio mismatch");
+          }
+          MemoryStream saved;component->getState(&saved);xs::State actual{};
+          check(xs::decode(reinterpret_cast<const uint8_t*>(saved.getData()),saved.getSize(),actual),"Automation state read");
+          check(xs::effectiveDestination(actual,slot)==destination,"Public VST3 automation destination meaning");
+        }
+        processor->setProcessing(false);component->setActive(false);
+        controller->setParamNormalized(xs::hostId(extension),1.);
+        controller->setParamNormalized(xs::hostId(legacy),destination%18/17.);
+        check(controller->getParamNormalized(xs::hostId(extension))==0.,"Controller legacy takeover");
+      }
+    std::cout<<"PASS public VST3 queues: six slots, all 18 legacy and 41 expanded choices, five block sizes, repeats, sample timing, same-offset precedence\n";
+    for(int slot=0;slot<6;++slot)for(int takeover=0;takeover<3;++takeover){
+      auto initial=xs::defaults();initial[xs::Unison]=1.;initial[xs::Detune]=.5;initial[xs::VoiceMode]=1.;
+      initial[xs::MatrixFirst+slot*3]=1.;initial[xs::MatrixFirst+slot*3+2]=.6;
+      auto bytes=xs::encode(initial);MemoryStream restored(bytes.data(),bytes.size());component->setState(&restored);component->setActive(true);processor->setProcessing(true);
+      ParameterChanges changes;int32 point=0;changes.addParameterData(xs::hostId(xs::DetuneRouteFirst+slot),point)->addPoint(0,1.,point);
+      if(takeover)changes.addParameterData(xs::hostId(takeover==1?xs::ExpandedDestinationFirst+slot:xs::legacyDestinationId(slot)),point)->addPoint(0,takeover==1?41/41.:17/17.,point);
+      EventList events;Event event{};event.type=Event::kNoteOnEvent;event.noteOn.pitch=60;event.noteOn.velocity=.7;event.noteOn.noteId=17;events.addEvent(event);
+      float l[128]{},r[128]{};float *channels[]={l,r};AudioBusBuffers bus{};bus.numChannels=2;bus.channelBuffers32=channels;ProcessData data{};data.numSamples=128;data.symbolicSampleSize=kSample32;data.numOutputs=1;data.outputs=&bus;data.inputEvents=&events;data.inputParameterChanges=&changes;check(processor->process(data)==kResultOk,"New destination queue processing");
+      MemoryStream saved;component->getState(&saved);xs::State actual{};check(xs::decode(reinterpret_cast<const uint8_t*>(saved.getData()),saved.getSize(),actual),"New destination queue state");check(xs::effectiveDestination(actual,slot)==(takeover==0?41:takeover==1?40:17),"Appended destination precedence");
+      for(int i=0;i<128;++i)check(std::isfinite(l[i])&&l[i]==r[i],"Unison mono output mismatch");
+      ParameterChanges stop;stop.addParameterData(xs::hostId(xs::AllSoundsOff),point)->addPoint(0,1,point);data.inputParameterChanges=&stop;data.inputEvents=nullptr;processor->process(data);for(float x:l)check(x==0,"Unison All Sounds Off did not clear");
+      controller->setParamNormalized(xs::hostId(xs::DetuneRouteFirst+slot),1.);controller->setParamNormalized(xs::hostId(xs::ExpandedDestinationFirst+slot),1.);check(controller->getParamNormalized(xs::hostId(xs::DetuneRouteFirst+slot))==0.,"Controller appended route takeover");
+      processor->setProcessing(false);component->setActive(false);
+    }
+    for(int slot=0;slot<xs::MatrixSlots;++slot)for(int source=0;source<xs::SourceCount;++source)for(int order=0;order<2;++order){
+      auto initial=xs::defaults();initial[xs::matrixId(slot)]=.1;auto bytes=xs::encode(initial);MemoryStream restored(bytes.data(),bytes.size());component->setState(&restored);component->setActive(true);processor->setProcessing(true);
+      ParameterChanges changes;int32 point=0;int sourceId=xs::matrixId(slot),extension=xs::SourceExtensionFirst+slot;
+      auto legacy=[&]{changes.addParameterData(xs::hostId(sourceId),point)->addPoint(0,source<11?source/10.:.1,point);};
+      auto ext=[&]{changes.addParameterData(xs::hostId(extension),point)->addPoint(0,source<11?1.:(source-10)/3.,point);};
+      if(source<11){if(order){legacy();ext();}else{ext();legacy();}}else ext();
+      float l[32]{},r[32]{};float *channels[]={l,r};AudioBusBuffers bus{};bus.numChannels=2;bus.channelBuffers32=channels;ProcessData data{};data.numSamples=32;data.symbolicSampleSize=kSample32;data.numOutputs=1;data.outputs=&bus;data.inputParameterChanges=&changes;check(processor->process(data)==kResultOk,"Source queue processing");
+      MemoryStream saved;component->getState(&saved);xs::State actual{};check(xs::decode(reinterpret_cast<const uint8_t*>(saved.getData()),saved.getSize(),actual),"Source queue state");check(xs::effectiveSource(actual,slot)==source,"Historical source /10 or extension precedence changed");
+      controller->setParamNormalized(xs::hostId(extension),1);controller->setParamNormalized(xs::hostId(sourceId),.1);check(controller->getParamNormalized(xs::hostId(extension))==0,"Controller source takeover");processor->setProcessing(false);component->setActive(false);
+    }
+    std::cout<<"PASS public source queues: 12 slots x 14 sources, both insertion orders, historical /10 writes take precedence including repeats\n";
     auto view = controller->createView(ViewType::kEditor);
     check(view != nullptr, "editor interface");
     EditHandler handler;

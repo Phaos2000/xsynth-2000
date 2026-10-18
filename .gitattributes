@@ -1,0 +1,11 @@
+# Preserve binary and hash-sensitive regression inputs exactly on every checkout.
+*.png -text
+*.wav -text
+*.XseDev -text
+*.xsedev -text
+expansion/factory/** -text -whitespace
+expansion/tests/reference/** -text -whitespace
+expansion/tests/reference-audio/** -text -whitespace
+expansion/tests/dssi/** -text -whitespace
+expansion/tests/pre-*/** -text -whitespace
+expansion/tests/perf-*/** -text -whitespace

@@ -89,6 +89,14 @@ public:
     }
     return kResultOk;
   }
+  tresult PLUGIN_API notify(IMessage *message) override {
+    if(message && message->getMessageID() && !std::strcmp(message->getMessageID(),"XsynthPatch")){
+      const void *data=nullptr;uint32 bytes=0;xs::State restored;
+      if(message->getAttributes()->getBinary("state",data,bytes)!=kResultOk || !xs::decode(static_cast<const uint8_t*>(data),bytes,restored))return kInvalidArgument;
+      states.restore(restored,true);return kResultOk;
+    }
+    return AudioEffect::notify(message);
+  }
   tresult PLUGIN_API setState(IBStream *s) override {
     xs::State v;
     if (!load(s, v))
@@ -108,7 +116,7 @@ public:
     DenormalGuard denormals;
     xs::StateMessage restored;
     if(states.audioRestore(restored)) {
-      for(int i=0;i<xs::Count;++i)engine.set(i,restored.value[i]);
+      for(int i=0;i<xs::Count;++i)if(!restored.preservePerformance || (i!=30&&i!=31&&i!=xs::AllNotesOff&&i!=xs::AllSoundsOff&&i!=xs::Pressure))engine.set(i,restored.value[i]);
       stateGeneration=restored.generation;
     }
     if(data.processContext) {
@@ -144,8 +152,9 @@ public:
     Event event{};
     bool eventReady=eventCount && data.inputEvents->getEvent(0,event)==kResultOk;
     auto apply=[&](int sample) {
-      for(int q=0;q<active;++q) {
+      for(int pass=0;pass<3;++pass)for(int q=0;q<active;++q) {
         auto &lane=lanes[q];
+        if((xs::legacyDestination(lane.id)||xs::matrixSource(lane.id)?2:xs::expandedDestination(lane.id)?1:0)!=pass)continue;
         while(lane.available && lane.offset<=sample) {
           if(lane.id==AllNotesOff)engine.allOff();
           else if(lane.id==AllSoundsOff)engine.reset(processSetup.sampleRate);
@@ -270,6 +279,9 @@ public:
   tresult PLUGIN_API setParamNormalized(ParamID id, ParamValue value) override {
     int index=xs::parameterIndex(id);
     if(index<0 || !xs::valid(value))return kInvalidArgument;
+    if(xs::matrixSource(index))EditControllerEx1::setParamNormalized(xs::hostId(xs::SourceExtensionFirst+xs::matrixSlot(index)),0.);
+    if(xs::legacyDestination(index)||xs::expandedDestination(index))EditControllerEx1::setParamNormalized(xs::hostId(xs::DetuneRouteFirst+(xs::legacyDestination(index)?(index-xs::MatrixFirst)/3:index-xs::ExpandedDestinationFirst)),0.);
+    if(xs::legacyDestination(index))EditControllerEx1::setParamNormalized(xs::hostId(xs::ExpandedDestinationFirst+(index-xs::MatrixFirst)/3),0.);
     return EditControllerEx1::setParamNormalized(id,xs::stepped(index,value));
   }
   static FUnknown *create(void *) { return static_cast<IEditController *>(new Controller); }
@@ -308,11 +320,31 @@ public:
     for(int i=34;i<xs::Count;++i) {
       char label[96]{};
       if(i<xs::MatrixFirst)std::snprintf(label,sizeof label,"%s",xs::extraSpecs[i-34].name);
+      else if(i==xs::Unison)std::snprintf(label,sizeof label,"Unison");
+      else if(i==xs::Detune)std::snprintf(label,sizeof label,"Unison detune");
+      else if(i>=xs::ExtraLfoFirst&&i<xs::NewMatrixFirst){const char*fields[]={"Rate","Pitch Depth","Filter Depth","Wave","Clock","Phase","Polarity","Digital Wave","Division"};std::snprintf(label,sizeof label,"LFO %d %s",2+(i-xs::ExtraLfoFirst)/9,fields[(i-xs::ExtraLfoFirst)%9]);}
+      else if(xs::sourceExtension(i))std::snprintf(label,sizeof label,"Matrix %d LFO Source Extension",i-xs::SourceExtensionFirst+1);
+      else if(i>=xs::NewMatrixFirst&&i<xs::NewDestinationFirst)std::snprintf(label,sizeof label,"Matrix %d %s",xs::matrixSlot(i)+1,(i-xs::NewMatrixFirst)%3==0?"Source":(i-xs::NewMatrixFirst)%3==1?"Destination":"Amount");
+      else if(i>=xs::DetuneRouteFirst&&i<xs::PreFourLfoCount)std::snprintf(label,sizeof label,"Matrix %d Unison Detune Route",i-xs::DetuneRouteFirst+1);
+      else if(xs::expandedDestination(i))std::snprintf(label,sizeof label,"Matrix %d Expanded Destination",i-xs::ExpandedDestinationFirst+1);
       else std::snprintf(label,sizeof label,"Matrix %d %s",(i-xs::MatrixFirst)/3+1,(i-xs::MatrixFirst)%3==0?"Source":(i-xs::MatrixFirst)%3==1?"Destination":"Amount");
       String128 title{};UString(title,128).fromAscii(label);
       parameters.addParameter(title,nullptr,xs::stepsFor(i),d[i],i==xs::Pressure?ParameterInfo::kIsHidden:ParameterInfo::kCanAutomate,xs::hostId(i));
     }
     return kResultOk;
+  }
+  bool restorePatch(const xs::State &state){
+    bool delivered=false;
+    if(auto *message=allocateMessage()){
+      auto bytes=xs::encode(state);message->setMessageID("XsynthPatch");
+      if(message->getAttributes()->setBinary("state",bytes.data(),uint32(bytes.size()))==kResultOk)delivered=sendMessage(message)==kResultOk;
+      message->release();
+    }
+    // Legacy-only patches can still travel through ordinary parameter edits
+    // when a minimal host has no component messaging connection.
+    if(!delivered){for(int slot=0;slot<6;++slot)if(state[xs::ExpandedDestinationFirst+slot]>0||state[xs::DetuneRouteFirst+slot]>0)return false;for(int slot=0;slot<xs::MatrixSlots;++slot)if(state[xs::SourceExtensionFirst+slot]>0)return false;}
+    for(int i=0;i<xs::Count;++i)setParamNormalized(xs::hostId(i),state[i]);
+    return true;
   }
   IPlugView *PLUGIN_API createView(FIDString name) override {
     return name && std::strcmp(name, ViewType::kEditor) == 0 ? new View(this) : nullptr;
@@ -390,9 +422,17 @@ public:
     }
     char *end{};
     double v = std::strtod(b, &end);
+    if(id>=xs::ExtraLfoFirst&&id<xs::NewMatrixFirst&&!xs::stepsFor(id)){
+      int base=xs::lfoBase(id);if(end==b||!std::isfinite(v))return kResultFalse;
+      if(base==4&&std::strcmp(end," Hz")==0){value=xs::normalized(4,std::max(.1,v));return kResultOk;}
+      if((base==5||base==6)&&std::strcmp(end,"%")==0){value=std::clamp(v/100,0.,1.);return kResultOk;}
+      return kResultFalse;
+    }
+    if(id==xs::Detune && end && std::strcmp(end," ct")==0)end+=3;
     if(id==xs::MasterTune && end && std::strcmp(end," ct")==0)end+=3;
     if (end == b || *end || !std::isfinite(v))
       return kResultFalse;
+    if(id==xs::Detune){value=std::clamp(v/50,0.,1.);return kResultOk;}
     if(id==xs::MasterTune || (id>=xs::MatrixFirst && (id-xs::MatrixFirst)%3==2)) {
       value=std::clamp(v/200+.5,0.,1.);return kResultOk;
     }
@@ -402,6 +442,8 @@ public:
   ParamValue PLUGIN_API normalizedParamToPlain(ParamID hostId, ParamValue v) override {
     int id=xs::parameterIndex(hostId);if(id<0)return 0;
     if(id>=34 && xs::stepsFor(id))return xs::discrete(id,v);
+    if(id>=xs::ExtraLfoFirst&&id<xs::NewMatrixFirst)return xs::lfoBase(id)==4?xs::physical(4,v):v*100;
+    if(id==xs::Detune)return v*50;
     if(id==xs::MasterTune)return (v*2-1)*100;
     if(id>=xs::MatrixFirst)return (v*2-1)*100;
     if (id >= 24 && id < 27) return std::round(std::clamp(v, 0., 1.) * 5.);
@@ -411,6 +453,8 @@ public:
   ParamValue PLUGIN_API plainParamToNormalized(ParamID hostId, ParamValue v) override {
     int id=xs::parameterIndex(hostId);if(id<0)return 0;
     if(id>=34 && xs::stepsFor(id))return std::round(std::clamp(v,0.,double(xs::stepsFor(id))))/xs::stepsFor(id);
+    if(id>=xs::ExtraLfoFirst&&id<xs::NewMatrixFirst)return xs::lfoBase(id)==4?xs::normalized(4,std::max(.1,v)):std::clamp(v/100,0.,1.);
+    if(id==xs::Detune)return std::clamp(v/50,0.,1.);
     if(id==xs::MasterTune || id>=xs::MatrixFirst)return std::clamp(v/200+.5,0.,1.);
     if (id >= 24 && id < 27) return std::round(std::clamp(v, 0., 5.)) / 5.;
     if (id >= 27 && id < 30) return xs::stepped(id, v);
@@ -433,6 +477,7 @@ View::View(Controller *c) : controller(c) {
       s[i] = controller->getParamNormalized(xs::hostId(i));
     return s;
   };
+  editor.restorePatch = [this](const xs::State &state){return controller->restorePatch(state);};
   editor.begin = [this](int id) { controller->beginEdit(xs::hostId(id)); };
   editor.end = [this](int id) { controller->endEdit(xs::hostId(id)); };
   editor.change = [this](int id, double v) {

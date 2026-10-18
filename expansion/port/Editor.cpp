@@ -10,6 +10,7 @@
 #include "UiGeometry.h"
 #include "ContextRegions.h"
 #include "SelectorKind.h"
+#include "SourceMenu.h"
 #include <commdlg.h>
 #include <cstdio>
 #include <fstream>
@@ -57,6 +58,7 @@ struct Editor::Impl {
   ULONG_PTR gdiplus{};
   int drag = -100, startY = 0, startX=0;
   bool draggingAmount=false;
+  int amountAxis=0,pendingMatrixMenu=-1;
   int pressedAction = 0;
   int pressedParam=-1,lastPressedParam=-1;
   bool swallowLeftRelease=false;
@@ -65,7 +67,11 @@ struct Editor::Impl {
   factory::Browser presets;
   std::string lastPresetLabel;
   std::wstring importedName;
-  std::array<Control,18> routes=matrixControls();
+  std::array<Control,36> routes=matrixControls();
+  std::array<Control,std::size(mainControls)> controls=[] {std::array<Control,std::size(mainControls)> a{};std::copy(std::begin(mainControls),std::end(mainControls),a.begin());return a;}();
+  int selectedLfo=0,wheelPitchId=-1,wheelPitchRemainder=0;
+  void selectLfo(int index){finishPointer();selectedLfo=index;for(size_t i=0;i<controls.size();++i){controls[i]=mainControls[i];int field=lfoField(controls[i].id);if(field>=0)controls[i].id=lfoParam(index,field);}background.clear();if(window)InvalidateRect(window,nullptr,FALSE);}
+  int lfoTab(int x,int y)const{for(int i=0;i<4;++i){auto b=lfoTabs::bounds(i);if(x>=b.x&&x<b.x+b.w&&y>=b.y&&y<b.y+b.h)return i;}return -1;}
   struct SectionCopy { std::array<double,9> values{}; int kind=0,count=0; } copied;
   uint32_t randomSeed=0x5068616f;
   HFONT font{}, header{}, presetFont{}, linkFont{};
@@ -81,7 +87,7 @@ struct Editor::Impl {
   bool themeOverride=false;
   void finishPointer(){
     if(drag>=0){int id=drag;drag=-100;owner->end(id);}
-    draggingAmount=false;pressedAction=0;pressedParam=-1;
+    draggingAmount=false;amountAxis=0;pendingMatrixMenu=-1;pressedAction=0;pressedParam=-1;
     if(GetCapture()==window)ReleaseCapture();
     if(window)InvalidateRect(window,nullptr,FALSE);
   }
@@ -105,6 +111,7 @@ struct Editor::Impl {
     }
   };
   const theme::Style &style() const {return theme::style(themeId);}
+  int unscaled(int value) const {return int(value/scale);}
   static COLORREF ref(uint32_t rgb){return RGB((rgb>>16)&255,(rgb>>8)&255,rgb&255);}
   COLORREF ink(COLORREF steel) const {
     return ref(theme::rgb((uint32_t(GetRValue(steel))<<16)|(uint32_t(GetGValue(steel))<<8)|GetBValue(steel),themeId));
@@ -358,7 +365,7 @@ struct Editor::Impl {
   }
   void hoverRoutes(POINT point) {
     unsigned mask=0;auto state=owner->read();
-    for(const auto &c:mainControls)if(c.kind==ControlKind::Knob) {
+    for(const auto &c:controls)if(c.kind==ControlKind::Knob) {
       unsigned routes=modulationRoutes(state,effectiveId(c,state));if(!routes)continue;
       auto bounds=markerBounds(c.x,c.y,c.label);InflateRect(&bounds,z(2),z(2));
       if(contains(bounds,point)){mask=routes;break;}
@@ -367,6 +374,10 @@ struct Editor::Impl {
     if(mask){TRACKMOUSEEVENT track{sizeof track,TME_LEAVE,window,0};TrackMouseEvent(&track);}
   }
   void valueText(int id,const State &s,char *out,size_t size) {
+    if(id==Unison){int request=UnisonCounts[discrete(Unison,s[Unison])],limit=VoiceCounts[discrete(Voices,s[Voices])];if(request>limit){std::snprintf(out,size,"%d (%d eff)",request,limit);return;}}
+    if(matrixSource(id)){std::snprintf(out,size,"%s",Sources[effectiveSource(s,matrixSlot(id))]);return;}
+    if(matrixDestination(id)){std::snprintf(out,size,"%s",Destinations[routeDestination(s,matrixSlot(id))]);return;}
+    if(id>=ExtraLfoFirst&&id<NewMatrixFirst){State proxy=s;int l=(id-ExtraLfoFirst)/9+1;for(int f=0;f<9;++f)proxy[LfoBaseIds[f]]=s[lfoParam(l,f)];valueText(lfoBase(id),proxy,out,size);return;}
     if(id==26 && s[LfoRandom]>0) { std::snprintf(out,size,"%s",s[LfoRandom]<.75?"S&H":"SMOOTH");return; }
     if(id==Keytrack || id==Velocity1 || id==Velocity2 || id==XDepth) {
       std::snprintf(out,size,"%.0f%%",s[id]*100);return;
@@ -395,7 +406,7 @@ struct Editor::Impl {
                (z(field.y+48+field.h)-z(field.y+48))/scale,{139,153,150},{52,82,88});
       bevel(field.x,field.y,field.w,field.h,pressed);
     }
-    char value[96]{}; valueText(c.id,s,value,sizeof value);
+    char value[96]{}; valueText(effectiveId(c,s),s,value,sizeof value);
     // Reserve the arrow gutter symmetrically: value, label and field now share
     // their exact centre, including narrow Voices and modulation source fields.
     text(c.x+moduleGrid::SelectorTextInset,c.y+2+(pressed?1:0),c.w-2*moduleGrid::SelectorTextInset,
@@ -415,47 +426,63 @@ struct Editor::Impl {
     text(labelRect.x,labelRect.y,labelRect.w,labelRect.h,c.label);
   }
   void amount(const Control &c,const State &s) {
-    well(c.x,c.y,c.w,22);
-    int destination=discrete(c.id-1,s[c.id-1]);
+    // Opaque pale readout; its lower six pixels alone carry the bipolar fill.
+    fill(c.x,c.y,c.w,faceGrid::AmountHeight,RGB(245,245,235));bevel(c.x,c.y,c.w,faceGrid::AmountHeight,true);
+    int destination=routeDestination(s,matrixSlot(c.id));
     char value[32]{};
     bool pitch=destination==0 || destination==3,octaves=destination==8 || destination==10;
     std::snprintf(value,sizeof value,pitch?"%+.1f st":octaves?"%+.2f oct":"%+.1f%%",(s[c.id]*2-1)*(pitch?48:octaves?4:100));
-    text(c.x+2,c.y+1,c.w-4,16,value,RGB(127,215,216));
+    text(c.x+2,c.y+1,c.w-4,14,value,RGB(0,0,0));
     int center=c.x+c.w/2,endpoint=c.x+5+int(std::round(s[c.id]*(c.w-10)));
-    line(c.x+5,c.y+18,c.x+c.w-5,c.y+18,RGB(50,102,115));
-    line(center,c.y+16,center,c.y+21,RGB(165,195,194));
-    if(endpoint!=center)fill(std::min(center,endpoint),c.y+18,std::abs(endpoint-center),2,RGB(66,184,208));
+    if(endpoint!=center)fill(std::min(center,endpoint),c.y+14,std::abs(endpoint-center),3,ref(style().activePrimary));
+    line(center,c.y+14,center,c.y+17,RGB(0,0,0));
   }
   const Control *controlAt(int x,int y) const {
-    for(const auto &c:mainControls) {
+    for(const auto &c:controls) {
       if(c.kind==ControlKind::Selector || c.kind==ControlKind::Toggle) { if(x>=c.x && x<c.x+c.w && y>=c.y && y<c.y+(c.kind==ControlKind::Toggle?22:18))return &c; }
       else if(x>=c.x-5 && x<c.x+40 && y>=c.y-5 && y<c.y+63)return &c;
     }
-    for(const auto &c:routes)if(x>=c.x && x<c.x+c.w && y>=c.y && y<c.y+(c.kind==ControlKind::Amount?22:18))return &c;
+    for(const auto &c:routes)if(x>=c.x && x<c.x+c.w && y>=c.y && y<c.y+(c.kind==ControlKind::Amount?faceGrid::AmountHeight:18))return &c;
     return nullptr;
   }
-  void select(const Control &c) {
-    auto state=owner->read(); int id=effectiveId(c,state);
-    bool lfoWave=id==26; int count=selectorCount(c,state);
-    int current=lfoWave && state[LfoRandom]>0?5+discrete(LfoRandom,state[LfoRandom]):discrete(id,state[id]);
-    int chosen=(current+1)%count;
-    if(isDropdown(c,state)) {
+  int lfoShapeIndex(int id,const State &state) const {
+    int lfo=id>=ExtraLfoFirst&&id<NewMatrixFirst?(id-ExtraLfoFirst)/9+1:0;
+    int randomId=lfoParam(lfo,7);
+    return state[randomId]>0?5+discrete(randomId,state[randomId]):discrete(id,state[id]);
+  }
+  void chooseLfoShape(int id,int chosen) {
+    int lfo=id>=ExtraLfoFirst&&id<NewMatrixFirst?(id-ExtraLfoFirst)/9+1:0;
+    auto change=[&](int p,double value){owner->begin(p);edit(p,value);owner->end(p);};
+    change(lfoParam(lfo,7),chosen>=6?(chosen-5)/2.:0);
+    if(chosen<6)change(lfoParam(lfo,3),chosen/5.);
+  }
+  void select(const Control &c,int direction=1) {
+    auto state=owner->read();int id=effectiveId(c,state),slot=matrixSlot(id);
+    bool destination=matrixDestination(id),source=matrixSource(id),wave=lfoBase(id)==26;
+    int lfo=id>=ExtraLfoFirst&&id<NewMatrixFirst?(id-ExtraLfoFirst)/9+1:0;
+    int randomId=lfoParam(lfo,7),waveId=lfoParam(lfo,3);
+    int count=selectorCount(c,state),current=destination?routeDestination(state,slot):source?sourceMenu::position(effectiveSource(state,slot)):wave?lfoShapeIndex(id,state):discrete(id,state[id]);
+    int chosen=(current+direction+count)%count;
+    if(isDropdown(c,state)){
       HMENU menu=CreatePopupMenu();
-      for(int i=0;i<count;++i) {
-        char label[96]{}; auto candidate=state;
-        if(lfoWave) { candidate[LfoRandom]=i>=6?(i-5)/2.:0; if(i<6)candidate[26]=i/5.; }
-        else candidate[id]=double(i)/(count-1);
-        valueText(id,candidate,label,sizeof label);
+      for(int i=0;i<count;++i){char label[96]{};
+        if(source)std::snprintf(label,sizeof label,"%s",Sources[sourceMenu::identity(i)]);
+        else if(destination)std::snprintf(label,sizeof label,"%s",Destinations[i]);
+        else {auto candidate=state;if(wave){candidate[randomId]=i>=6?(i-5)/2.:0;if(i<6)candidate[waveId]=i/5.;}else candidate[id]=double(i)/(count-1);valueText(id,candidate,label,sizeof label);}
         AppendMenuA(menu,MF_STRING|(i==current?MF_CHECKED:0),i+1,label);
       }
-      POINT point{z(c.x),z(c.y+48+18)};ClientToScreen(window,&point);
-      PopupScope modal(*this);
-      UINT result=TrackPopupMenu(menu,TPM_RETURNCMD|TPM_NONOTIFY,point.x,point.y,0,window,nullptr);
-      DestroyMenu(menu); if(!result)return;chosen=int(result)-1;
+      POINT point{z(c.x),z(c.y+48+18)};ClientToScreen(window,&point);PopupScope modal(*this);
+      UINT result=TrackPopupMenu(menu,TPM_RETURNCMD|TPM_NONOTIFY,point.x,point.y,0,window,nullptr);DestroyMenu(menu);if(!result)return;chosen=int(result)-1;
     }
     auto change=[&](int p,double value){owner->begin(p);edit(p,value);owner->end(p);};
-    if(lfoWave) { change(LfoRandom,chosen>=6?(chosen-5)/2.:0); if(chosen<6)change(26,chosen/5.); }
-    else change(id,double(chosen)/(count-1));
+    if(wave)chooseLfoShape(id,chosen);
+    else if(source){int sourceId=sourceMenu::identity(chosen);if(sourceId<LegacySourceCount){change(SourceExtensionFirst+slot,0);change(id,sourceId/10.);}else change(SourceExtensionFirst+slot,(sourceId-10)/3.);}
+    else if(destination){
+      if(slot>=6){change(id,chosen/double(DestinationCount-1));return;}
+      change(DetuneRouteFirst+slot,chosen==EstablishedDestinationCount?1.:0.);if(chosen==EstablishedDestinationCount)return;
+      if(chosen<LegacyDestinationCount){change(ExpandedDestinationFirst+slot,0.);change(id,chosen/double(LegacyDestinationCount-1));}
+      else change(ExpandedDestinationFirst+slot,(chosen+1)/double(EstablishedDestinationCount));
+    }else change(id,double(chosen)/(count-1));
   }
   int titleScale() const { return std::max(1, int(std::floor(scale))); }
   // Center the visible bitmap in the 48-unit header; match its left inset.
@@ -585,7 +612,7 @@ struct Editor::Impl {
   }
   void factoryPreset(int index) {
     if(index!=factory::Init&&(index<0||index>=factory::Count))return;
-    applyPatch(index==factory::Init?factory::initState():factory::Presets[index].state);presets.select(index);
+    if(applyPatch(index==factory::Init?factory::initState():factory::Presets[index].state))presets.select(index);
     importedName=index==factory::Init?L"INIT":dssi::wide(factory::Presets[index].name);
     for(auto& c:importedName)if(c<32||wcschr(L"<>:\"/\\|?*",c))c=L'_';
     InvalidateRect(window,nullptr,FALSE);
@@ -630,23 +657,24 @@ struct Editor::Impl {
         screw(p.x+6,p.y+11);screw(p.x+p.w-6,p.y+11);
         screw(p.x+6,p.y+p.h-6);screw(p.x+p.w-6,p.y+p.h-6);
       }
-      for(const auto &c:mainControls)if(c.kind==ControlKind::Knob)knob(c.x,c.y,effectiveId(c,s),c.label,s,true);
+      for(const auto &c:controls)if(c.kind==ControlKind::Knob)knob(c.x,c.y,effectiveId(c,s),c.label,s,true);
       headerStrip();
       GdiFlush();background.assign(pixels,pixels+width*height);
     } else std::copy(background.begin(),background.end(),pixels);
-    for(const auto &c:mainControls) {
+    for(const auto &c:controls) {
       if(c.kind==ControlKind::Knob)knob(c.x,c.y,effectiveId(c,s),c.label,s,false,c.valueWidth);
       else if(c.kind==ControlKind::Toggle)toggle(c,s);
       else selector(c,s);
     }
+    for(int tab=0;tab<4;++tab){auto b=lfoTabs::bounds(tab);gradient(b.x,b.y,b.w,b.h,{139,153,150},{52,82,88});bevel(b.x,b.y,b.w,b.h,tab==selectedLfo);char label[2]={char('1'+tab),0};text(b.x,b.y+2,b.w,b.h-4,label,tab==selectedLfo?ref(style().activePrimary):ref(style().primaryText));}
     for(const auto &c:routes) {
       if(c.kind==ControlKind::Amount)amount(c,s);
       else { auto field=c;field.label="";selector(field,s); }
     }
     const char *headings[]={"SOURCE","DESTINATION","AMOUNT"};
     for(int half=0;half<2;++half)for(int column=0;column<3;++column)
-      text(half*matrixGrid::HalfWidth+matrixGrid::FieldX[column],MatrixFirstRow-15,matrixGrid::FieldWidth[column],12,headings[column],ref(style().secondaryText));
-    for(int i=0;i<6;++i) {
+      text(half*matrixGrid::HalfWidth+matrixGrid::FieldX[column],matrixGrid::LabelY,matrixGrid::FieldWidth[column],matrixGrid::LabelHeight,headings[column],ref(style().secondaryText));
+    for(int i=0;i<MatrixSlots;++i) {
       int offset=matrixGrid::origin(i),y=matrixGrid::row(i);char number[4]{};std::snprintf(number,sizeof number,"%d",i+1);
       text(offset+10,y,14,moduleGrid::SelectorHeight,number,ref(style().secondaryText));text(offset+132,y,14,moduleGrid::SelectorHeight,">");
     }
@@ -654,10 +682,10 @@ struct Editor::Impl {
     if(modulated(s,-2))fill(452,8,3,3,RGB(66,184,208));
     if(pressedAction)headerButtons(true);
     presetStrip(presetLabel);
-    for(int slot=0;slot<6;++slot)if(highlightedRoutes&(1u<<slot)) {
+    for(int slot=0;slot<MatrixSlots;++slot)if(highlightedRoutes&(1u<<slot)) {
       int offset=matrixGrid::origin(slot),y=matrixGrid::row(slot);
       line(offset+28,y-2,offset+470,y-2,RGB(127,215,216));
-      line(offset+28,y+24,offset+470,y+24,RGB(127,215,216));
+      line(offset+28,y+19,offset+470,y+19,RGB(127,215,216));
     }
     if (aboutOpen)
       aboutPanel();
@@ -713,12 +741,30 @@ struct Editor::Impl {
       change(id,value);
     }
   }
-  void applyPatch(const State& s) {
-    // Parsing and all validation have completed before any parameter is edited.
+  bool applyPatch(const State& s) {
+    // Keep live MIDI controls; restore destination representations atomically.
+    State patch=s,current=owner->read();
+    const int performanceIds[]={30,31,AllNotesOff,AllSoundsOff,Pressure};
+    for(int i:performanceIds)patch[i]=current[i];
+    for(int i=0;i<Count;++i)patch[i]=stepped(i,patch[i]);
+    bool transaction=bool(owner->restorePatch);
+    if(transaction && !owner->restorePatch(patch)){
+      MessageBoxW(window,L"The host did not provide the component connection needed to restore this expanded routing patch.",L"Xsynth 2000",MB_OK|MB_ICONERROR);return false;
+    }
     for(int i=0;i<Count;++i) {
       if(i==30||i==31||i==AllNotesOff||i==AllSoundsOff||i==Pressure)continue;
-      owner->begin(i);edit(i,s[i]);owner->end(i);
+      if(transaction && (legacyDestination(i)||expandedDestination(i)||(i>=DetuneRouteFirst&&i<PreFourLfoCount)||matrixSource(i)||sourceExtension(i)))continue;
+      owner->begin(i);edit(i,patch[i]);owner->end(i);
     }
+    // Only the active representation becomes a host automation edit. Inactive
+    // fallbacks are already restored by the transaction and must not override it.
+    if(transaction)for(int slot=0;slot<6;++slot){
+      int id=patch[DetuneRouteFirst+slot]>=.5?DetuneRouteFirst+slot:
+        patch[ExpandedDestinationFirst+slot]>0?ExpandedDestinationFirst+slot:legacyDestinationId(slot);
+      owner->begin(id);edit(id,patch[id]);owner->end(id);
+    }
+    if(transaction)for(int slot=0;slot<MatrixSlots;++slot){int id=patch[SourceExtensionFirst+slot]>0?SourceExtensionFirst+slot:matrixId(slot);owner->begin(id);edit(id,patch[id]);owner->end(id);}
+    return true;
   }
   void importDssi() {
     PopupScope modal(*this);
@@ -739,7 +785,7 @@ struct Editor::Impl {
       int selected=dssi::choose(window,bank);
       if(selected<0)return;
       auto& entry=bank.entries[size_t(selected)];
-      applyPatch(entry.state);
+      if(!applyPatch(entry.state))return;
       presets.loaded(entry.state,entry.patch.name);
       importedName=dssi::wide(entry.patch.name);
       for(auto& c:importedName)if(c<32||wcschr(L"<>:\"/\\|?*",c))c=L'_';
@@ -783,7 +829,7 @@ struct Editor::Impl {
       else {presets.loaded(owner->read(),std::filesystem::path(path).stem().u8string());importedName=std::filesystem::path(path).stem().wstring();InvalidateRect(window,nullptr,FALSE);}
     } else {
       std::ifstream in(path, std::ios::binary | std::ios::ate);
-      if (!in || (in.tellg() != 209 && in.tellg() != StateBytes && in.tellg() != 8+LegacyCount*8)) {
+      if (!in || (in.tellg() != 209 && in.tellg() != StateBytes && in.tellg() != 8+PreUnisonCount*8 && in.tellg() != 8+PreviousCount*8 && in.tellg() != 8+LegacyCount*8)) {
         MessageBoxW(window, L"Expected an original Xsynth patch or an Xsynth 2000 preset.", XSYNTH_WIDE(XSYNTH_PRODUCT_NAME), MB_ICONERROR);
         return;
       }
@@ -795,7 +841,7 @@ struct Editor::Impl {
         MessageBoxW(window, L"Invalid Xsynth patch data.", XSYNTH_WIDE(XSYNTH_PRODUCT_NAME), MB_ICONERROR);
         return;
       }
-      applyPatch(s);
+      if(!applyPatch(s))return;
       presets.loaded(s,std::filesystem::path(path).stem().u8string());
       importedName=std::filesystem::path(path).stem().wstring();
     }
@@ -886,7 +932,12 @@ struct Editor::Impl {
       if(inside(ui::PresetPrevious)){self->factoryPreset(self->presets.adjacent(-1));return 0;}
       if(inside(ui::PresetNext)){self->factoryPreset(self->presets.adjacent(1));return 0;}
       if(inside(ui::PresetField)){self->presetMenu();return 0;}
+      if(self->lfoTab(x,y)>=0){self->selectLfo(self->lfoTab(x,y));return 0;}
       const auto *control=self->controlAt(x,y);
+      if(control && matrixSlot(control->id)>=0 && control->kind==ControlKind::Selector) {
+        // Open on the completed opening click, not while its button is held.
+        self->pendingMatrixMenu=control->id;SetCapture(w);return 0;
+      }
       if(control && (control->kind==ControlKind::Selector || control->kind==ControlKind::Toggle)) {
         if(!isDropdown(*control,self->owner->read())){self->pressedParam=control->id;SetCapture(w);}
         self->select(*control);InvalidateRect(w,nullptr,FALSE);return 0;
@@ -897,6 +948,7 @@ struct Editor::Impl {
         self->startY = GET_Y_LPARAM(lp);
         self->startX = GET_X_LPARAM(lp);
         self->draggingAmount=control && control->kind==ControlKind::Amount;
+        self->amountAxis=0;
         self->startValue = self->owner->read()[id];
         self->owner->begin(id);
         SetCapture(w);
@@ -921,8 +973,13 @@ struct Editor::Impl {
       return 0;
     }
     case WM_RBUTTONUP:
-      if(!self->aboutOpen && !self->modalActive && self->drag<0 && IsWindowEnabled(w))
+      if(!self->aboutOpen && !self->modalActive && self->drag<0 && self->pendingMatrixMenu<0 && IsWindowEnabled(w)) {
+        const auto *c=self->controlAt(self->unscaled(GET_X_LPARAM(lp)),self->unscaled(GET_Y_LPARAM(lp))-48);
+        if(c&&(c->kind==ControlKind::Selector||c->kind==ControlKind::Toggle)&&!isDropdown(*c,self->owner->read())) {
+          self->select(*c,-1);InvalidateRect(w,nullptr,FALSE);return 0;
+        }
         self->sectionMenu(GET_X_LPARAM(lp),GET_Y_LPARAM(lp));
+      }
       return 0;
     case WM_MOUSELEAVE:
       if(self->highlightedRoutes){self->highlightedRoutes=0;InvalidateRect(w,nullptr,FALSE);}
@@ -932,8 +989,13 @@ struct Editor::Impl {
       if (self->aboutOpen)
         return 0;
       if (self->drag >= 0) {
+        int dx=GET_X_LPARAM(lp)-self->startX,dy=self->startY-GET_Y_LPARAM(lp);
+        if(self->draggingAmount && !self->amountAxis) {
+          if(std::max(std::abs(dx),std::abs(dy))<std::max(2,self->z(3)))return 0;
+          self->amountAxis=std::abs(dx)>=std::abs(dy)?1:2;
+        }
         double value = self->startValue +
-            (self->draggingAmount ? GET_X_LPARAM(lp)-self->startX : self->startY-GET_Y_LPARAM(lp)) /
+            (self->draggingAmount && self->amountAxis==1 ? dx : dy) /
             ((self->draggingAmount ? 200 : 150)*self->scale*((wp & MK_SHIFT) ? 10 : 1));
         // Manual coarse Pitch edits only: 48 semitones span normalized [0,1].
         // Imported/state/automation values and Shift fine edits remain continuous.
@@ -943,6 +1005,12 @@ struct Editor::Impl {
       }
       return 0;
     case WM_LBUTTONUP:
+      if(self->pendingMatrixMenu>=0) {
+        int id=self->pendingMatrixMenu;self->pendingMatrixMenu=-1;
+        if(GetCapture()==w)ReleaseCapture();
+        const auto *c=self->controlAt(self->unscaled(GET_X_LPARAM(lp)),self->unscaled(GET_Y_LPARAM(lp))-48);
+        if(c&&c->id==id)self->select(*c);return 0;
+      }
       if(self->pressedParam>=0){self->pressedParam=-1;if(GetCapture()==w)ReleaseCapture();InvalidateRect(w,nullptr,FALSE);}
       if(self->pressedAction==-3){self->pressedAction=0;ReleaseCapture();InvalidateRect(w,nullptr,FALSE);}
       if (self->drag >= 0) {
@@ -952,7 +1020,7 @@ struct Editor::Impl {
       }
       return 0;
     case WM_CAPTURECHANGED:
-      self->pressedParam=-1;self->swallowLeftRelease=false;
+      self->pendingMatrixMenu=-1;self->pressedParam=-1;self->swallowLeftRelease=false;
       if(self->pressedAction==-3){self->pressedAction=0;InvalidateRect(w,nullptr,FALSE);}
       if (self->drag >= 0) {
         self->owner->end(self->drag);
@@ -970,9 +1038,30 @@ struct Editor::Impl {
       ScreenToClient(w, &pt);
       int id = self->hit(int(pt.x / self->scale), int(pt.y / self->scale) - 48);
       if (id >= 0) {
+        if(lfoBase(id)==26){
+          const auto *control=self->controlAt(int(pt.x/self->scale),int(pt.y/self->scale)-48);
+          auto state=self->owner->read();int delta=GET_WHEEL_DELTA_WPARAM(wp);
+          if(delta)self->chooseLfoShape(id,std::clamp(self->lfoShapeIndex(id,state)+(delta>0?1:-1),0,selectorCount(*control,state)-1));
+          return 0;
+        }
+        if(matrixSource(id)){
+          auto state=self->owner->read();int slot=matrixSlot(id),position=std::clamp(sourceMenu::position(effectiveSource(state,slot))+(GET_WHEEL_DELTA_WPARAM(wp)>0?1:-1),0,SourceCount-1),next=sourceMenu::identity(position);
+          auto change=[&](int p,double v){self->owner->begin(p);self->edit(p,v);self->owner->end(p);};
+          if(next<LegacySourceCount){change(SourceExtensionFirst+slot,0);change(id,next/10.);}else change(SourceExtensionFirst+slot,(next-10)/3.);return 0;
+        }
+        if(legacyDestination(id)) {
+          auto state=self->owner->read();int slot=(id-MatrixFirst)/3;
+          int next=std::clamp(effectiveDestination(state,slot)+(GET_WHEEL_DELTA_WPARAM(wp)>0?1:-1),0,DestinationCount-1);
+          int appended=DetuneRouteFirst+slot;self->owner->begin(appended);self->edit(appended,next==EstablishedDestinationCount?1.:0.);self->owner->end(appended);if(next==EstablishedDestinationCount)return 0;
+          int target=next<LegacyDestinationCount?id:ExpandedDestinationFirst+slot;
+          if(target==id){int extended=ExpandedDestinationFirst+slot;self->owner->begin(extended);self->edit(extended,0.);self->owner->end(extended);}
+          self->owner->begin(target);self->edit(target,next<LegacyDestinationCount?next/double(LegacyDestinationCount-1):(next+1)/double(EstablishedDestinationCount));self->owner->end(target);return 0;
+        }
         self->owner->begin(id);
-        self->edit(id, self->owner->read()[id] +
-                           (GET_WHEEL_DELTA_WPARAM(wp) > 0 ? 1 : -1) * (stepsFor(id)?1./stepsFor(id):.01));
+        double value=self->owner->read()[id],direction=GET_WHEEL_DELTA_WPARAM(wp)/double(WHEEL_DELTA);
+        if((id==0||id==2)&&!(GET_KEYSTATE_WPARAM(wp)&MK_SHIFT)){if(self->wheelPitchId!=id){self->wheelPitchId=id;self->wheelPitchRemainder=0;}self->wheelPitchRemainder+=GET_WHEEL_DELTA_WPARAM(wp);int ticks=self->wheelPitchRemainder/WHEEL_DELTA;self->wheelPitchRemainder%=WHEEL_DELTA;if(ticks)value=std::clamp(std::round(value*48-24)+ticks,-24.,24.)/48+.5;}
+        else value+=direction*(stepsFor(id)?1./stepsFor(id):(GET_KEYSTATE_WPARAM(wp)&MK_SHIFT)?.001:.01);
+        self->edit(id,value);
         self->owner->end(id);
       }
       return 0;
@@ -982,6 +1071,7 @@ struct Editor::Impl {
       // Discrete actions still activate once per click; continuous controls
       // retain their existing double-click-to-default gesture.
       int x=int(GET_X_LPARAM(lp)/self->scale),y=int(GET_Y_LPARAM(lp)/self->scale)-48;
+      if(!self->aboutOpen&&self->lfoTab(x,y)>=0){self->selectLfo(self->lfoTab(x,y));return 0;}
       const auto* control=self->controlAt(x,y);
       if(self->aboutOpen||y<0||(control&&(control->kind==ControlKind::Selector||control->kind==ControlKind::Toggle)))
         return proc(w,WM_LBUTTONDOWN,wp,lp);

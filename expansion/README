@@ -1,0 +1,127 @@
+Xsynth 2000 - version 0.1.1
+Vendor: Phaos
+
+Xsynth 2000 is a new digital synthesizer developed from Steve J. Brookes'
+Xsynth 1.0.2 (1999).
+The faithful/reference edition remains the separate product Xsynth.
+
+Xsynth 2000 provides independently selectable CLASSIC/CLEAN oscillators,
+FM/PM and sync, digital mixer/filter modes, polyphony, expanded envelopes,
+twelve modulation routes, four independent LFOs, Unison, and six visual themes.
+STEEL is the default. The title reads XSYNTH 2000, followed by small v0.1.1 text.
+
+Build: ./build.ps1 (Windows, CMake, Visual Studio, official VST3 SDK).
+Pre-build DSP gate: ./validate-dsp.ps1 (test executables only).
+See DSP_VALIDATION.md for results, the envelope precision fix, and retained WAVs.
+The full build runs this gate before compiling a VST3.
+Bundle: build/VST3/Release/Xsynth 2000.vst3
+Release downloads: Xsynth-2000-0.1.1-Windows-x64.zip and matching source ZIP.
+package.ps1 is retained as a historical checkpoint script, not the release workflow.
+See PRODUCT-IDENTITY.md, THEMES.md, and CREDITS.md for details.
+
+Existing Xsynth 2000 class IDs, parameter/state formats and theme preferences
+remain compatible. The original Xsynth sources and binary are preserved in the
+parent workspace and build independently.
+
+Both oscillator Pitch controls now span 0.25..4.0, with old native state migration.
+See PITCH_RANGE.md for mapping, automation implications and 239/239 DSSI imports.
+
+Historical bank import (source/test checkpoint): LOAD PATCH -> Import Xsynth-DSSI
+Bank... supports format 0 and 1. Conversion has documented limitations; genuine
+DSSI listening comparison remains outstanding. See DSSI_COMPATIBILITY.md.
+No release VST3 was produced for this importer checkpoint.
+
+Historical README from the original Xsynth 1.0.2 source follows unchanged.
+======================================================================
+
+Xsynth - a real-time software synthesizer
+
+Copyright (C) 1999 S. J. Brookes
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License in the file COPYING for more details.
+
+
+                                  Xsynth
+                                  ------
+
+Introduction
+------------
+Xsynth is a real-time software synthesizer for any computer running Linux,
+the Open Sound System, and X windows.  The program also requires that the
+computer be equipped with a sound-card, and a MIDI keyboard is required to
+play the synthesizer.
+
+The synthesizer is monophonic (highest note priority) and presently operates
+in MIDI mode 2 (Omni-On Mono), ie. it receives on ALL MIDI channels.  It
+would be simple to change the code such that the synth would operate in MIDI
+mode 4 (Omni-Off Mono).  As well as receiving note on/off information, the
+synth also receives pitch-bend and modulation input from the external MIDI
+device.  The external modulation is routed to the filter cut-off frequency.
+
+The synth architecture should be familiar to anyone that has previously used
+an analogue synthesizer, and includes the following features:
+
+2 oscillators (with independent pitch, balance control, and oscillator sync)
+1 low frequency oscillator (used as a modulation source)
+2 envelope generators
+1 low pass filter
+portamento (slides pitch from a PREVIOUSLY HELD note)
+
+The control panel of the synthesizer appears in a window.  ALL the controls
+may be operated in real-time using the mouse.
+
+Error Messages
+--------------
+Some run-time errors are fatal, and if these are received then program will
+shut down (or should be shut down!).  These include:
+
+init_dsp: unable to open /dev/dsp
+init_midi: unable to open /dev/midi
+main: shmget error
+main: shmat error
+main: fork error for first child
+main: fork error for second child
+user_interface: cannot connect to X server
+user_interface: cannot open ________ font
+midi: cannot catch SIGUSR1
+synth: cannot catch SIGUSR1
+
+Other messages indicate problems that may affect the running of the program,
+but are not fatal.  These include:
+
+main: memory lock has failed
+main: problem setting process scheduling
+user_interface: unable to get background colour
+user_interface: unable to get foreground colour
+
+Further messages are used to indicate errors with the external MIDI device:
+
+error: midi receive problem
+error: current status byte is not set
+
+The last error may generally be recovered from by moving a different
+controller, eg. if pressing keys on the MIDI keyboard yields
+
+error: current status byte is not set
+
+then moving the pitch bend or modulation control should allow the program
+to recover.
+
+
+Historical factory browser (validation candidate, 2026-10-17)
+----------------------------------------------------------
+The header now contains a grouped factory selector and previous/next buttons.
+50 preserved records cover XSYNTH 1.0.2, XSYNTH-DSSI FACTORY and XSYNTH-DSSI 0.1.
+See factory/BANKS.md and factory/manifest.json for exact provenance, counts,
+licenses and excluded external banks. Save Patch writes a normal user file.
+The About screen has a shared-header-material title plaque and a centered
+THEME: NAME cycling button. STEEL remains the default. DSP/state/IDs unchanged.
+No final release package has been created for this pass.

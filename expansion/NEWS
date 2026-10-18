@@ -1,0 +1,21 @@
+Xsynth - Copyright (C) 1999 S. J. Brookes
+
+Version 1.0.1 - 6 July 1999
+
+Some minor changes to the code have made the synth much more resilient to
+external interruptions.  The occasional problem with corrupted MIDI input
+also seems to have disappeared...
+
+The clicks that were present sometimes at the start and end of notes have
+been removed by writing silence to the dsp device between the notes.
+
+Thanks to Dave Phillips (dlphilp@bright.net) for helping with the testing
+required to turn version 1.0.0 into version 1.0.1.
+
+
+Version 1.0.2 - 19 July 1999
+
+No functional changes, but the code has been cleaned up slightly...
+
+Thanks to Stefan Nitschke (nitschke@fzi.de) for bringing to my attention
+a couple of major bugs.

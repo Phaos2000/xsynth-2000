@@ -1,88 +1,83 @@
-# Xsynth 2000 0.1.0
+# Xsynth 2000 v0.1.1
 
 Developed by Phaos · https://phaos.neocities.org/ · phaos2000@pm.me
 
-Xsynth 2000 is a new digital synthesizer developed from Steve J. Brookes'
-Xsynth 1.0.2 (1999). It retains the original project as its historical and code
-foundation while substantially developing the synthesis architecture, modulation,
-oscillator interaction, filtering, voice system, workflow, Windows VST3
-implementation, and graphical interface.
-
-## Requirements and installation
-
-Windows x64 and a VST3 host. Validation was performed on Windows 10 x64; this
-release does not provide macOS, Linux or other plugin-format builds.
-
-Copy the entire **Xsynth 2000.vst3** folder into
-`C:\Program Files\Common Files\VST3\`, then rescan plugins in your DAW if needed.
-The faithful **Xsynth.vst3** is a separate product and can remain installed
-alongside it. Copy the whole bundle, including Contents/Resources.
+Xsynth 2000 is a digital synthesizer developed from Steve J. Brookes' Xsynth
+1.0.2 (1999), with a Windows x64 VST3 implementation and a retro graphical
+interface. This branch contains the v0.1.1 sources. The original `v0.1.0` tag
+and release downloads remain preserved as a historical checkpoint.
 
 ## Instrument
 
-- Two oscillators with independent CLASSIC / CLEAN rendering and a pitch range
-  of -24 to +24 semitones (0.25x–4x).
-- FM / PM oscillator interaction and hard sync.
-- BAL / SUM / RING / AM / XOR / DIFF mixing.
-- LP / HP / BP / NOTCH filtering, 12 / 24 dB/oct selection and key tracking.
-- Expanded envelopes, tempo-synced LFO and six-slot modulation matrix.
-- Poly / mono voice modes, glide and master tuning.
-- Historical factory library, native user presets and Xsynth-DSSI bank import.
-- Six themes, a resizable interface and a fixed original pixel wordmark.
+- Two CLASSIC / CLEAN oscillators, −24 to +24 semitones, FM / PM and hard sync.
+- Six mixer modes; LP / HP / BP / NOTCH filtering, 12 / 24 dB/oct and keytracking.
+- Two expanded envelopes and four complete, independent LFOs.
+- Twelve matrix routes, fourteen sources and forty-two destinations.
+- Poly/mono modes, glide, master tuning and Unison OFF / 2 / 4 / 8 within a
+  fixed 32-physical-voice pool, with dynamic group normalization.
+- Historical factory banks, native patches, Xsynth and Xsynth-DSSI import.
+- Six themes, remembered resizing and an original fixed bitmap wordmark.
 
-CLASSIC preserves raw, direct digital oscillator behavior; aliasing is an
-intentional part of its sound. CLEAN offers reduced oscillator aliasing as an
-alternate rendering mode. Neither mode is presented as analog emulation.
+CLASSIC retains direct digital oscillator behavior, including aliasing. CLEAN
+reduces aliasing without changing oscillator tuning. The faithful Xsynth VST3
+remains a separate product with distinct class IDs. Four LFO editor buttons
+select which LFO is shown; all four continue running. Each has independent
+Pitch/Filter Depth, with direct pitch affecting both oscillators.
 
 ## Controls and presets
 
-Drag knobs vertically. Normal VCO Pitch dragging steps by one semitone;
-Shift-drag provides continuous fine adjustment. Other knobs also use Shift for
-fine adjustment. Double-click a knob to restore its default. Matrix amounts
-drag horizontally and double-click to zero. Discrete buttons cycle their values;
-dropdown fields open menus. Right-click supported oscillator/envelope modules
-for their editing commands.
+Drag knobs vertically; Shift gives fine adjustment. Ordinary VCO Pitch dragging
+and wheel ticks use exact semitones. Double-click restores defaults. Matrix
+Amount accepts horizontal or vertical dragging with dominant-axis lock, a small
+dead zone, Shift fine adjustment and double-click zero. Dropdowns open on a
+completed click and persist for selection. Cycling buttons use left-click next
+and right-click previous. Source menus group LFO 1–4 without changing saved
+source identities or normalized automation.
 
-The header selector contains **INIT** followed by 50 historical records in three
-banks. Previous/next arrows move through that list. INIT is the new instrument's
-initialization patch, not historical material. The historical records include
-42 sounds and eight retained informational entries; duplicates are intentional.
+The LFO Wave menu and mouse wheel share all eight shapes, in this order:
+SINE, TRI, SAW UP, SAW DN, SQUARE, PULSE, S&H, SMOOTH. Wheel up advances;
+wheel down reverses, clamping at the ends. All four LFOs behave identically.
 
-**LOAD PATCH** opens native/original patch loading or **Import Xsynth-DSSI Bank...**.
-**SAVE PATCH** writes a user patch without replacing factory data. Native files
-use `.XseDev`; their filename stem supplies the displayed name: `My Bass.XseDev`
-appears as `My Bass`. Host project state retains sound parameters; an arbitrary
-user filename is not embedded in that state and may reopen as CUSTOM.
+The header contains INIT and fifty historical records in three banks: forty-two
+sounds and eight informational entries, with intentional duplicates. LOAD PATCH
+also imports DSSI banks. SAVE PATCH writes `.XseDev` files without overwriting
+factory data. Their filename stem provides the displayed patch name; arbitrary
+filenames are not embedded in host project state.
 
-Click the title to open About. THEME cycles STEEL (default), 98, INDUSTRIAL,
-MULTIMEDIA, 2000 and SAND. Theme selection is a per-user UI preference, independent
-of patch state and sound. Clicking THEME or a website/email link keeps About open;
-click elsewhere to dismiss it.
+Click the logo for About. THEME cycles STEEL (default), 98, INDUSTRIAL,
+MULTIMEDIA, 2000 and SAND. Theme is a per-user preference separate from patches.
+THEME and website/email clicks keep About open; clicking elsewhere dismisses it.
 
-## Historical compatibility
+## Build and validation
 
-Original Xsynth `.Xpatch` files and Xsynth-DSSI text patch/bank formats 0 and 1
-can be imported. DSSI sound is approximate, not bit-identical: oscillator and
-variable-triangle rendering, sync, nonlinear velocity response, MVCLPF-3 filter
-behavior, per-voice LFO behavior, glide and historical timing differ. All 239
-patches in the tested external compatibility corpus converted successfully;
-this does not guarantee every malformed or future file will work identically.
-Community banks are external downloads, not included in this distribution.
+See [SOURCE.md](SOURCE.md) for Windows build and fixture setup. The
+[current checkpoint](expansion/docs/VALIDATION-CHECKPOINT.md) records the four-LFO,
+performance and matrix-menu changes. Full local validation passed 24/24 suites
+and Steinberg validation passed 47/0 with optional external fixtures available.
 
-For users of unreleased development builds only: external automation authored
-before the 0.25x–4x oscillator pitch extension used an older normalized mapping.
-Legacy native-state migration preserves tuning; external automation lanes may
-need adjustment. New users of 0.1.0 are unaffected by that development change.
+Optimization preserved exact output in 3,168 comparisons and reduced fully
+modulated 32-voice processing cost roughly 22–25% in the paired local benchmark.
+Two 96 kHz / 32-voice / 128-sample cases remained over realtime. Offline results
+do not establish Renoise scheduling or listening quality.
 
-## License and source
+Original `.Xpatch` and DSSI formats 0/1 can be imported; DSSI sound is approximate,
+not bit-identical. State/automation migration preserves established meanings.
+High-cutoff filtering and direct LFO routing were intentionally corrected;
+historical 0.1.0 sound parity is not the current behavior target.
 
-Synthesizer code and original project wordmark: GPL-2.0-or-later. See COPYING,
-AUTHOR and CREDITS.md. Original Xsynth code Copyright © 1999 S. J. Brookes.
-The incorporated Steinberg SDK components use MIT; their notice is in
-VST3-SDK-LICENSE.txt. Historical preset notices, bank descriptions and exact
-source checksums are inside the plugin at Contents/Resources/Factory.
+## Repository contents and license
 
-The matching `Xsynth-2000-0.1.0-source.zip` is provided alongside this Windows
-archive and contains the corresponding source, build instructions and required
-redistributable SDK source subset. Keep both downloads available together.
-See SOURCE.md for rebuilding and SHA256SUMS.txt alongside the archives for hashes.
+`expansion/` includes production/test source, development notes, historical C
+sources, factory resources and deliberate regression fixtures. Required source
+snapshots, native-patch/WAV references and fixture CSVs are retained. Generated
+builds, audits, benchmark exports, logs, caches and release archives are excluded.
+Optional third-party DSSI banks and their audio corpus remain local-only under
+the existing fixture policy; see [EXTERNAL-FIXTURES.md](expansion/tests/EXTERNAL-FIXTURES.md).
+
+The existing `external/vst3sdk/` source subset and notices are unchanged. Revisions
+are recorded in SDK-COMPONENTS.txt and expansion/SDK_REVISION.txt.
+
+Synthesizer code and original project wordmark: GPL-2.0-or-later; see COPYING,
+AUTHOR and CREDITS.md. Original Xsynth: Copyright © 1999 S. J. Brookes. Steinberg
+SDK components use MIT; see VST3-SDK-LICENSE.txt. Factory notices and checksums
+remain in expansion/factory/. No new release package accompanies this update.

@@ -9,6 +9,8 @@ inline DialogRun *dialogRun = nullptr;
 inline bool fixtureHeld=false;
 inline SHORT WINAPI fixtureAsync(int key){return key==VK_LBUTTON&&fixtureHeld?SHORT(0x8000):0;}
 inline int popupChoice=-999,popupCalls=0;
+inline int expectedSourcePosition=-1,sourceMenuChecks=0;
+inline int expectedLfoShape=-1,lfoShapeMenuChecks=0;
 inline bool expectFileError=false;
 inline int fileErrors=0;
 inline bool injectPointer=false;
@@ -42,6 +44,22 @@ inline BOOL WINAPI fixtureFile(LPOPENFILENAMEW file) {
 inline BOOL WINAPI fixtureMenu(HMENU menu, UINT flags, int, int, int, HWND owner, const RECT *) {
   contextProbe(owner);
   if(popupChoice!=-999){++popupCalls;
+    if(expectedLfoShape>=0){
+      const char *labels[]={"SINE","TRI","SAW UP","SAW DN","SQUARE","PULSE","S&H","SMOOTH"};
+      check(GetMenuItemCount(menu)==8,"LFO shape menu count");
+      for(int i=0;i<8;++i){char label[96]{};GetMenuStringA(menu,i,label,sizeof label,MF_BYPOSITION);
+        check(std::string(label)==labels[i]&&GetMenuItemID(menu,i)==UINT(i+1),"LFO shape order/command");
+        check(bool(GetMenuState(menu,i,MF_BYPOSITION)&MF_CHECKED)==(i==expectedLfoShape),"LFO shape checked item");}
+      ++lfoShapeMenuChecks;
+    }
+    if(expectedSourcePosition>=0){
+      const char*labels[]={"OFF","LFO 1","LFO 2","LFO 3","LFO 4","EG1","EG2","Velocity","Key","Mod Wheel","Pressure","Pitch Bend","Note Random","Constant"};
+      check(GetMenuItemCount(menu)==14,"Source menu count");
+      for(int i=0;i<14;++i){char label[96]{};GetMenuStringA(menu,i,label,sizeof(label),MF_BYPOSITION);
+        check(std::string(label)==labels[i]&&GetMenuItemID(menu,i)==UINT(i+1),"Source menu displayed order/command");
+        check(bool(GetMenuState(menu,i,MF_BYPOSITION)&MF_CHECKED)==(i==expectedSourcePosition),"Source menu checked item mapping");}
+      ++sourceMenuChecks;
+    }
     if(injectPointer){
       auto spot=[&](int x,int y){return MAKELPARAM(int(x*pointerScale),int(y*pointerScale));};
       SendMessageW(owner,WM_LBUTTONDOWN,MK_LBUTTON,spot(684,247));

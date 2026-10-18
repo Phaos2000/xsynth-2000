@@ -1,0 +1,19 @@
+Installation is easy!  Type 'make' to compile the program.  The location
+of the X library may need checking in the Makefile.  The program is fairly
+demanding in terms of CPU time.  The CPU time requirement is greater at
+high sample frequencies.  If the program requires too much CPU time at the
+default sample rate of 44100 Hz then the SAMPLE_RATE entry in the file
+'synth.h' should be reduced (to 22050 or even 11025), and the code re-compiled.
+This will unfortunately adversely affect the sound quality.
+
+When the program has been successfully compiled, type (as root):
+
+chown root xsynth [enter]
+
+chmod u+s xsynth [enter]
+
+This will allow the real-time scheduler to operate correctly.
+
+To run the program type:
+
+xsynth [enter]

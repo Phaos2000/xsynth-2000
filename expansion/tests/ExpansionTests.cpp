@@ -16,7 +16,7 @@ void operator delete[](void *p) noexcept {::operator delete(p);}
 void operator delete(void *p,size_t) noexcept {std::free(p);}
 void operator delete[](void *p,size_t) noexcept {std::free(p);}
 void check(bool value,const char *message) { if(!value)throw std::runtime_error(message); }
-void option(xs::Engine &e,int id,int value) {e.set(id,double(value)/xs::stepsFor(id));}
+void option(xs::Engine &e,int id,int value) {if(xs::legacyDestination(id)){if(value==xs::EstablishedDestinationCount)e.set(xs::DetuneRouteFirst+(id-xs::MatrixFirst)/3,1.);else e.set(xs::ExpandedDestinationFirst+(id-xs::MatrixFirst)/3,(value+1)/double(xs::EstablishedDestinationCount));}else e.set(id,double(value)/xs::stepsFor(id));}
 double render(xs::Engine &e,int n) {double energy=0;for(int i=0;i<n;++i){float v=e.next();check(std::isfinite(v)&&std::abs(v)<=1,"Nonfinite/unbounded expansion output");energy+=v*v;}return energy;}
 double alias(bool clean) {
  xs::Engine e;e.reset(48000);option(e,xs::FilterType,1);e.set(21,.01);e.set(24,.4);e.set(7,0);e.set(0,xs::normalized(0,7500/(440*std::exp2(27./12))));e.set(xs::Engine1,clean?1:0);
@@ -26,14 +26,14 @@ double alias(bool clean) {
 }
 int main() {
  try {
-  static_assert(sizeof(xs::Engine)<32768,"DSP instance must remain small");
+  static_assert(sizeof(xs::Engine)<98304,"DSP fixed storage must remain below 96 KiB");
   auto original=xs::defaults();auto legacy=original;legacy[0]=legacy[2]=0;auto bytes=xs::encode(legacy);bytes.resize(8+xs::LegacyCount*8);bytes[4]=1;bytes[2]='V';bytes[3]='3';xs::State old{};
   check(xs::decode(bytes.data(),bytes.size(),old)&&old==original,"Version-1 state migration failed");
   auto mixed=original;
   for(int i=34;i<xs::Count;++i)mixed[i]=xs::stepped(i,.723);
   bytes=xs::encode(mixed);xs::State restored{};
   check(xs::decode(bytes.data(),bytes.size(),restored)&&restored==mixed,"Expansion state recall failed");
-  bytes[4]=3;check(!xs::decode(bytes.data(),bytes.size(),restored),"Unknown state version accepted");
+  bytes[4]=99;check(!xs::decode(bytes.data(),bytes.size(),restored),"Unknown state version accepted");
   for(int voices=0;voices<6;++voices) {
     xs::Engine e;e.reset(48000);option(e,xs::VoiceMode,2);option(e,xs::Voices,voices);
     for(int n=36;n<76;++n)e.note(n,true,.7f,n);

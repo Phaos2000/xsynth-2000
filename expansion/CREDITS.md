@@ -1,6 +1,6 @@
 # XSYNTH 2000
 
-Version 0.1.0
+Version 0.1.1
 
 Developed by Phaos
 https://phaos.neocities.org/

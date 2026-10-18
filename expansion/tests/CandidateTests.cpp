@@ -9,6 +9,7 @@
 #include "ContextRegions.h"
 #include "ThemePreference.h"
 #include "ProductIdentity.h"
+#include "Version.h"
 #include "pluginterfaces/base/ipluginbase.h"
 #include "pluginterfaces/gui/iplugview.h"
 #include "pluginterfaces/vst/ivstaudioprocessor.h"
@@ -48,7 +49,7 @@ struct Module {
   FUID expected[2]={{0x7923268C,0x1C9D43DE,0xAA65DAAC,0x78C5232D},{0x0C0B572A,0x7CD34DC5,0x95F21C41,0x22650E26}};
   for(int i=0;i<2;++i){check(factory->getClassInfo(i,&classes[i])==kResultOk,"Class info");check(FUnknownPrivate::iidEqual(classes[i].cid,expected[i].toTUID()),"Class ID changed");}
   check(std::strcmp(classes[0].name,"Xsynth 2000")==0,"Product name");
-  IPluginFactory2* f2{};check(factory->queryInterface(IPluginFactory2::iid.toTUID(),reinterpret_cast<void**>(&f2))==kResultOk,"Factory2");PClassInfo2 detail{};f2->getClassInfo2(0,&detail);check(std::strcmp(detail.version,"0.1.0")==0,"Version");f2->release();
+  IPluginFactory2* f2{};check(factory->queryInterface(IPluginFactory2::iid.toTUID(),reinterpret_cast<void**>(&f2))==kResultOk,"Factory2");PClassInfo2 detail{};f2->getClassInfo2(0,&detail);check(std::strcmp(detail.version,XSYNTH_VERSION)==0,"Version");f2->release();
  }
  ~Module(){if(factory)factory->release();if(library){auto end=reinterpret_cast<bool(*)()>(GetProcAddress(library,"ExitDll"));if(end)end();FreeLibrary(library);}}
 };
@@ -62,8 +63,11 @@ struct Handler: IComponentHandler {
  tresult PLUGIN_API restartComponent(int32)override{return kResultOk;}
 };
 struct Instance {
- IComponent* component{};IAudioProcessor* audio{};IEditController*controller{};IPlugView*view{};HWND parent{},child{};Handler handler;
+ IComponent* component{};IAudioProcessor* audio{};IEditController*controller{};IPlugView*view{};IConnectionPoint *componentLink{},*controllerLink{};HWND parent{},child{};Handler handler;
  Instance(Module&m){check(m.factory->createInstance(m.classes[0].cid,IComponent::iid.toTUID(),reinterpret_cast<void**>(&component))==kResultOk,"Create component");check(component->initialize(&m.host)==kResultOk,"Component init");check(component->queryInterface(IAudioProcessor::iid.toTUID(),reinterpret_cast<void**>(&audio))==kResultOk,"Audio interface");check(m.factory->createInstance(m.classes[1].cid,IEditController::iid.toTUID(),reinterpret_cast<void**>(&controller))==kResultOk,"Create controller");check(controller->initialize(&m.host)==kResultOk,"Controller init");controller->setComponentHandler(&handler);
+  check(component->queryInterface(IConnectionPoint::iid.toTUID(),reinterpret_cast<void**>(&componentLink))==kResultOk,"Processor connection");
+  check(controller->queryInterface(IConnectionPoint::iid.toTUID(),reinterpret_cast<void**>(&controllerLink))==kResultOk,"Controller connection");
+  check(componentLink->connect(controllerLink)==kResultOk&&controllerLink->connect(componentLink)==kResultOk,"Connect component peers");
   ProcessSetup setup{};setup.processMode=kRealtime;setup.symbolicSampleSize=kSample32;setup.maxSamplesPerBlock=512;setup.sampleRate=44100;check(audio->setupProcessing(setup)==kResultOk,"Process setup");component->activateBus(kAudio,kOutput,0,true);component->activateBus(kEvent,kInput,0,true);check(component->setActive(true)==kResultOk,"Activate");audio->setProcessing(true);restore(xs::defaults());
  }
  void restoreBytes(std::vector<uint8_t>&bytes){MemoryStream a(bytes.data(),bytes.size());check(component->setState(&a)==kResultOk,"Linked state load");MemoryStream b(bytes.data(),bytes.size());check(controller->setComponentState(&b)==kResultOk,"Linked controller load");handler.pending.clear();}
@@ -75,7 +79,7 @@ struct Instance {
  }
  void open(){check(!view,"Editor already open");parent=CreateWindowW(L"STATIC",L"Xsynth 2000 validation host",WS_POPUP,0,0,960,568,nullptr,nullptr,GetModuleHandleW(nullptr),nullptr);check(parent!=nullptr,"Host HWND");view=controller->createView(ViewType::kEditor);check(view&&view->attached(parent,kPlatformTypeHWND)==kResultOk,"Editor attachment");ViewRect r;view->getSize(&r);check(r.getWidth()==960&&r.getHeight()==568,"Native geometry");child=GetWindow(parent,GW_CHILD);check(child!=nullptr,"Native editor");}
  void close(){if(view){view->removed();view->release();view=nullptr;}if(parent){DestroyWindow(parent);parent=nullptr;child=nullptr;}}
- ~Instance(){close();controller->setComponentHandler(nullptr);controller->terminate();controller->release();audio->setProcessing(false);component->setActive(false);audio->release();component->terminate();component->release();}
+ ~Instance(){close();controllerLink->disconnect(componentLink);componentLink->disconnect(controllerLink);controllerLink->release();componentLink->release();controller->setComponentHandler(nullptr);controller->terminate();controller->release();audio->setProcessing(false);component->setActive(false);audio->release();component->terminate();component->release();}
 };
 Event note(int pitch,bool on,int offset=0){Event e{};e.type=on?Event::kNoteOnEvent:Event::kNoteOffEvent;e.sampleOffset=offset;if(on){e.noteOn.pitch=pitch;e.noteOn.velocity=.8f;e.noteOn.noteId=pitch;}else{e.noteOff.pitch=pitch;e.noteOff.noteId=pitch;}return e;}
 std::vector<float> sequence(Instance&i,const xs::State&s,int pitch,bool chord=false,bool repeated=false,bool allOff=false){i.audio->setProcessing(false);i.component->setActive(false);i.restore(s);i.component->setActive(true);i.audio->setProcessing(true);std::vector<float> result;result.reserve(88200);
@@ -99,12 +103,12 @@ int main(int argc,char**argv){try {
  check(argc==4,"Expected candidate DLL, expansion root, artifact directory");fs::path root=fs::absolute(argv[2]),art=fs::absolute(argv[3]);fs::create_directories(art);
  Gdiplus::GdiplusStartupInput input;ULONG_PTR token{};check(Gdiplus::GdiplusStartup(&token,&input,nullptr)==Gdiplus::Ok,"GDI+ init");
  {PreferenceGuard preference;Module module(argv[1]);PickerFixtures pickers(module.library);Instance instance(module);
- std::cout<<"PASS: linked identity Xsynth 2000 / Phaos / 0.1.0 and exact processor/controller IDs\n";
+ std::cout<<"PASS: linked identity Xsynth 2000 / Phaos / "<<XSYNTH_VERSION<<" and exact processor/controller IDs\n";
  auto basic=xs::defaults();basic[24]=.4;basic[xs::VoiceMode]=1;basic[7]=0;
  for(int n:{36,60,84})sequence(instance,basic,n);sequence(instance,basic,60,true);sequence(instance,basic,60,false,true);sequence(instance,basic,60,false,false,true);
  std::cout<<"PASS: linked low/middle/high, chord, repeated notes, note-off and all-notes-off; finite stereo output and released tails\n";
  for(int id:{0,2})for(double ratio:{.25,.5,1.,2.,4.}){double n=instance.controller->plainParamToNormalized(xs::hostId(id),ratio);closeValue(instance.controller->normalizedParamToPlain(xs::hostId(id),n),ratio,"Linked physical ratio");String128 text{};check(instance.controller->getParamStringByValue(xs::hostId(id),n,text)==kResultOk,"Linked display");auto s=basic;s[id]=n;s[7]=id?1:0;instance.restore(s);instance.process(128);auto saved=instance.saved();xs::State decoded{};check(xs::decode(saved.data(),saved.size(),decoded),"Linked pitch save");closeValue(xs::physical(id,decoded[id]),ratio,"Linked saved pitch");sequence(instance,s,60);}
- for(auto&f:fs::directory_iterator(root/"tests/reference-audio"))if(f.path().extension()==".XseDev"){auto old=read(f.path());xs::State expected{};check(xs::decode(old.data(),old.size(),expected),"V1 fixture");instance.restoreBytes(old);auto ui=instance.ui();check(ui==expected,"Linked migration parameters");instance.process(128);auto current=instance.saved();check(current[4]==2,"Linked current state version");xs::State decoded{};check(xs::decode(current.data(),current.size(),decoded)&&decoded==expected,"Linked migration save");instance.restoreBytes(current);check(instance.ui()==expected,"Linked migrated reload");}
+ for(auto&f:fs::directory_iterator(root/"tests/reference-audio"))if(f.path().extension()==".XseDev"){auto old=read(f.path());xs::State expected{};check(xs::decode(old.data(),old.size(),expected),"V1 fixture");instance.restoreBytes(old);auto ui=instance.ui();check(ui==expected,"Linked migration parameters");instance.process(128);auto current=instance.saved();check(current[4]==6,"Linked current state version");xs::State decoded{};check(xs::decode(current.data(),current.size(),decoded)&&decoded==expected,"Linked migration save");instance.restoreBytes(current);check(instance.ui()==expected,"Linked migrated reload");}
  std::cout<<"PASS: linked both VCO octave stops, physical conversion/display/save/restore, ten V1 migrations and V2 reload\n";
  for(int id:std::initializer_list<int>{0,2,21,xs::XDepth,7,4}){instance.restore(basic);EventList events;events.addEvent(note(60,true));ParameterChanges changes;int32 index=0;auto*lane=changes.addParameterData(xs::hostId(id),index);lane->addPoint(0,0,index);lane->addPoint(127,1,index);instance.process(128,&events,&changes);auto bytes=instance.saved();xs::State state{};check(xs::decode(bytes.data(),bytes.size(),state),"Automation saved state");closeValue(state[id],1,"Automation ID endpoint");}
  std::cout<<"PASS: linked realtime-process-mode automation of both pitches/cutoff/XMOD depth/balance/LFO rate reaches DSP state\n";
@@ -131,8 +135,16 @@ int main(int argc,char**argv){try {
  for(int index=0;index<xs::factory::Count;++index){factorySelection=index;click(instance.child,540,28);factorySelection=-1;check(xs::factory::sameSound(instance.ui(),xs::factory::Presets[index].state),"Linked factory selection");check(xs::theme::load(xs::theme::PreferenceKey)==xs::theme::Id::Sand,"Factory changed theme");instance.process(128);}
  click(instance.child,xs::ui::PresetNext.x+12,28);check(xs::factory::sameSound(instance.ui(),xs::factory::initState()),"Linked next wrap");click(instance.child,xs::ui::PresetPrevious.x+12,28);check(xs::factory::sameSound(instance.ui(),xs::factory::Presets[49].state),"Linked previous wrap");
  std::cout<<"PASS: actual linked grouped factory menu, 50 names/states, wrap, theme isolation\n";
- auto preset=basic;preset[0]=0;preset[2]=1;instance.restore(preset);DialogRun save;save.operation=2;save.path=(art/("linked-native-"+std::to_string(GetCurrentProcessId())+".XseDev")).wstring();fileAction(instance,save);check(fs::exists(save.path),"Native Save Patch did not write");
- instance.restore(xs::defaults());DialogRun load;load.path=save.path;fileAction(instance,load);check(instance.ui()==preset,"Native Load Patch differs");instance.process(128);check(xs::theme::load(xs::theme::PreferenceKey)==xs::theme::Id::Sand,"Patch changed theme");
+ auto preset=basic;preset[0]=0;preset[2]=1;
+ preset[xs::Unison]=2./3;preset[xs::Detune]=.5;
+ for(int l=1;l<4;++l)for(int f=0;f<9;++f){int id=xs::lfoParam(l,f);preset[id]=xs::stepped(id,.19*l);}
+ for(int slot=0;slot<12;++slot){preset[xs::SourceExtensionFirst+slot]=((slot%3)+1)/3.;if(slot>=6){preset[xs::matrixId(slot)]=.1;preset[xs::matrixId(slot,1)]=(slot*3)/41.;preset[xs::matrixId(slot,2)]=.65;}}
+ preset[xs::MatrixFirst]=1.;preset[xs::MatrixFirst+1]=1.;preset[xs::MatrixFirst+2]=.6;
+ preset[xs::ExpandedDestinationFirst]=34./41;preset[xs::DetuneRouteFirst]=1.;
+ preset[xs::MatrixFirst+3]=1.;preset[xs::ExpandedDestinationFirst+1]=25./41;preset[xs::MatrixFirst+5]=.6;
+instance.restore(preset);DialogRun save;save.operation=2;save.path=(art/("linked-native-"+std::to_string(GetCurrentProcessId())+".XseDev")).wstring();fileAction(instance,save);check(fs::exists(save.path),"Native Save Patch did not write");
+ instance.restore(xs::defaults());{ParameterChanges bend;int32 index=0;bend.addParameterData(xs::hostId(30),index)->addPoint(0,.65,index);instance.process(1,nullptr,&bend);}DialogRun load;load.path=save.path;fileAction(instance,load);check(instance.ui()==preset,"Native Load Patch differs");instance.process(128);{auto bytes=instance.saved();xs::State actual{};check(xs::decode(bytes.data(),bytes.size(),actual)&&[&]{auto expected=preset;expected[30]=.65;return actual==expected;}(),"Native Load DSP routing/fallback values differ from UI");}check(xs::theme::load(xs::theme::PreferenceKey)==xs::theme::Id::Sand,"Patch changed theme");
+ std::cout<<"PASS: atomic native Load preserves legacy/expanded/Unison Detune routes, inactive fallbacks and live DSP MIDI bend independently of stale UI cache\n";
  for(const char*name:{"bass","lead"}){auto shortPath=art/(std::string(name)+".XseDev");fs::copy_file(save.path,shortPath,fs::copy_options::overwrite_existing);load.path=shortPath.wstring();fileAction(instance,load);verifyHeaderText(capture(instance.child),960,568,1,xs::theme::Id::Sand,name);}
  load.path=save.path;
  std::cout<<"PASS: external bass/lead labels use centered production header font at fixed width\n";

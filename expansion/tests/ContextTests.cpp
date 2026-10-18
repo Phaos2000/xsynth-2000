@@ -2,6 +2,7 @@
 #include "Editor.h"
 #include "ContextRegions.h"
 #include "UiGeometry.h"
+#include "SelectorKind.h"
 #include <commdlg.h>
 #include <fstream>
 #include <iostream>
@@ -164,8 +165,13 @@ int main(int argc, char **argv) {
       auto dispatch = [&](int x, int y) {
         int owner = (x < 0 || y < 0 || x >= width || y >= height) ? -1 : paint[y * width + x];
         expectedSection = owner < 0 ? -1 : menus[owner];
+        const Control *cycle=nullptr;int lx=int(x/scale),ly=int(y/scale)-48;
+        for(const auto&c:mainControls)if((c.kind==ControlKind::Selector||c.kind==ControlKind::Toggle)&&!isDropdown(c,state)&&
+          lx>=c.x&&lx<c.x+c.w&&ly>=c.y&&ly<c.y+(c.kind==ControlKind::Toggle?22:18)){cycle=&c;break;}
+        auto prior=state;if(cycle)expectedSection=-1;
         int before = popups;
         right(editorWindow, x, y);
+        if(cycle){int id=effectiveId(*cycle,prior),count=selectorCount(*cycle,prior);check(discrete(id,state[id])==(discrete(id,prior[id])+count-1)%count,"Right button did not reverse");state=prior;}
         check(popups - before == (expectedSection >= 0 ? 1 : 0),
               "Production right-click dispatch mismatch");
         ++eventSamples;
@@ -227,7 +233,7 @@ int main(int argc, char **argv) {
                    "About routing\n";
     }
     table << "GLOBAL HEADER,0,0,960,48,header,NO MODULE CONTEXT,none\n";
-    editor.resize(960, 568);
+    editor.resize(960, 568);edits=0;
     // THEME must never dismiss About, across an entire six-theme cycle.
     click(editorWindow,60,24);int themeMenus=popups;auto themeState=state;
     for(int i=0;i<6;++i){click(editorWindow,480,492);probeModal();check(popups==themeMenus,"THEME dismissed About");}

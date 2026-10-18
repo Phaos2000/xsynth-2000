@@ -1,0 +1,11 @@
+Xsynth - Copyright (C) 1999 S. J. Brookes
+
+1) The real-time scheduling is not perfect, and interruptions can cause the
+   output to become crackly.  IMPROVED with version 1.0.1
+
+2) Very occasionally the MIDI input can become corrupted, causing a false
+   note to be played.  FIXED with version 1.0.1
+
+3) The filter can overload the output when the resonance is high.  This causes
+   (nasty) distortion, but may be cured by reducing the (synth) volume setting.
+   This is not really a bug, but is also not really a feature...

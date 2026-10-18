@@ -26,11 +26,12 @@ int WINAPI wWinMain(HINSTANCE h, HINSTANCE, LPWSTR, int) {
     state[xs::XMode]=1;state[xs::XDepth]=.28;state[27]=1;state[xs::MixerMode]=.4;
     state[xs::FilterType]=2./3;state[21]=.24;state[22]=.45;state[xs::Keytrack]=.5;
     state[xs::LfoClock]=1;state[xs::Division]=20./29;state[xs::LfoPhase]=1;state[xs::LfoRandom]=1;
+    state[xs::Unison]=2./3;state[xs::Detune]=.5;
     state[xs::VoiceMode]=1;state[xs::GlideMode]=2./3;state[8]=.7;
     state[xs::Velocity1]=.6;state[xs::Velocity2]=.4;state[xs::Loop2]=.5;state[xs::Curve2]=1;state[17]=.35;
     const int source[]={1,3,4,6,7,9},destination[]={3,8,14,6,8,1};
     const double amount[]={.5625,.75,.65,.8,.6,.7};
-    for(int slot=0;slot<6;++slot){int id=xs::MatrixFirst+slot*3;state[id]=source[slot]/10.;state[id+1]=destination[slot]/17.;state[id+2]=amount[slot];}
+    for(int slot=0;slot<6;++slot){int id=xs::MatrixFirst+slot*3;state[id]=source[slot]/10.;state[id+1]=destination[slot]/double(xs::LegacyDestinationCount-1);state[id+2]=amount[slot];}
   }
   for(int i=1;i<argc;++i)if(std::wcscmp(argv[i],L"--preset")==0&&i+1<argc){int index=_wtoi(argv[++i]);if(index>=0&&index<xs::factory::Count)state=xs::factory::Presets[index].state;}
   for(int i=1;i<argc;++i)if(std::wcscmp(argv[i],L"--init")==0)state=xs::factory::initState();

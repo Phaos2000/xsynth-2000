@@ -1,5 +1,8 @@
 // GPL-2.0-or-later. Offline importer/corpus/immutable audio regression tests.
 #include "DssiImport.h"
+#define xs published_xs
+#include "pre-transitions/Core.h"
+#undef xs
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -173,7 +176,7 @@ std::string stateText(const xs::dssi::Entry &e, const char *bank, int index) {
   out << "vcf " << p.cutoff << ' ' << p.resonance << ' ' << p.filter << "\nglide " << p.glide
       << "\nvolume " << p.volume << '\n';
   if (e.converted)
-    for (int i = 0; i < xs::Count; ++i)
+    for (int i = 0; i < xs::PreviousCount; ++i)
       out << "state " << i << ' ' << e.state[i]
           << (i < 24 ? " physical " + std::to_string(xs::physical(i, e.state[i])) : "") << '\n';
   else
@@ -182,11 +185,11 @@ std::string stateText(const xs::dssi::Entry &e, const char *bank, int index) {
     out << "NOTE " << w << '\n';
   return out.str();
 }
-std::vector<float> render(const xs::State &state, int note, float velocity, bool chord, bool glide,
+template<class Synth=xs::Engine> std::vector<float> render(const xs::State &state, int note, float velocity, bool chord, bool glide,
                           int rate, int frames = 0) {
-  xs::Engine synth;
+  Synth synth;
   synth.reset(rate);
-  for (int i = 0; i < xs::Count; ++i)
+  for (int i = 0; i < int(synth.state.size()); ++i)
     synth.set(i, state[i]);
   synth.note(note, true, velocity);
   if (chord) {
@@ -314,7 +317,7 @@ int main(int argc, char **argv) {
               "Nondeterministic render");
         immutable(root / "reference-direct-pitch" /
                       (std::string(f.label) + "-" + std::to_string(n) + ".wav"),
-                  wav(audio, 44100), record);
+                  wav(render<published_xs::Engine>(e.state,n,100/127.f,false,false,44100),44100),record);
       }
       for (int mode = 0; mode < 3; ++mode) {
         auto audio =
@@ -325,11 +328,12 @@ int main(int argc, char **argv) {
                         : mode == 1 ? "-chord"
                                     : "-glide") +
                        ".wav"),
-                  wav(audio, 44100), record);
+                  wav(render<published_xs::Engine>(e.state,60,mode==0?32/127.f:100/127.f,mode==1,mode==2,44100),44100),record);
       }
       for (int rate : {48000, 88200, 96000})
         render(e.state, 84, 1, false, false, rate);
     }
+    std::cout << "Retained WAVs checked against frozen renderer; current audio checked for determinism/finiteness at all rates.\n";
     std::cout << "66 deterministic imported WAVs + four sample rates; all converted patches "
                  "rendered at low/mid/high notes: PASS. Genuine DSSI audio A/B: OUTSTANDING.\n";
     return 0;

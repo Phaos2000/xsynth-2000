@@ -5,6 +5,7 @@
 #include "UiGeometry.h"
 #include "DssiDialog.h"
 #include "ContextRegions.h"
+#include "SourceMenu.h"
 #include <iomanip>
 #include <commdlg.h>
 #include <filesystem>
@@ -179,6 +180,9 @@ int main(int argc, char **argv) {
               for (int p : changed)
                 check(p == id, "Button edited unrelated parameter");
               check(GetCapture() != w, "Button capture stale");
+              SendMessageW(w,WM_RBUTTONUP,0,MAKELPARAM(int((c.x+c.w/2)*scale),int((c.y+48+8)*scale)));
+              check(state==before,"Right-click reverse did not restore previous discrete value");
+              check(popupCalls==calls,"Reverse button also opened a menu");
               int ax = int(std::round((c.x + c.w - 5) * scale)),
                   ay = int(std::round((c.y + 48 + 10) * scale));
               if (c.kind == ControlKind::Selector)
@@ -212,12 +216,13 @@ int main(int argc, char **argv) {
           check(popupCalls == calls + 1, "Popup open required extra click");
           check(state[18] == before[18], "EG2 Release click-through");
           for (int id = 0; id < Count; ++id)
-            if (id != c.id && !(c.id == 26 && id == LfoRandom))
+            if (id != c.id && !(legacyDestination(c.id) && (id==ExpandedDestinationFirst+(c.id-MatrixFirst)/3 || id==DetuneRouteFirst+(c.id-MatrixFirst)/3)) && !(c.id == 26 && id == LfoRandom) && !(matrixSource(c.id)&&id==SourceExtensionFirst+matrixSlot(c.id)))
               check(state[id] == before[id], "Popup affected unrelated control");
           for (int p : changed)
-            check(p == c.id || (c.id == 26 && p == LfoRandom), "Popup started unrelated gesture");
+            check(p == c.id || (legacyDestination(c.id) && (p==ExpandedDestinationFirst+(c.id-MatrixFirst)/3 || p==DetuneRouteFirst+(c.id-MatrixFirst)/3)) || (c.id == 26 && p == LfoRandom) || (matrixSource(c.id)&&p==SourceExtensionFirst+matrixSlot(c.id)), "Popup started unrelated gesture");
           if (!choice)
             check(state == before, "Cancel changed state");
+          else if(legacyDestination(c.id))check(effectiveDestination(state,(c.id-MatrixFirst)/3)==choice-1,"Unified matrix destination selection");
           check(GetCapture() != w, "Popup retained capture");
           ++dropdownTests;
         }
@@ -230,9 +235,87 @@ int main(int argc, char **argv) {
         SendMessageW(w, WM_LBUTTONUP, 0, MAKELPARAM(int(46 * scale), int(83 * scale)));
         check(state[0] > before, "First drag lost after menu");
       }
+      // Exercise the production menu and wheel from every shape on every LFO.
+      Control shape{};for(auto c:mainControls)if(c.id==26)shape=c;
+      auto shapeWheel=[&](int delta){POINT point{int((shape.x+shape.w/2)*scale),int((shape.y+48+8)*scale)};ClientToScreen(w,&point);SendMessageW(w,WM_MOUSEWHEEL,MAKEWPARAM(0,short(delta)),MAKELPARAM(point.x,point.y));};
+      for(int lfo=0;lfo<4;++lfo){auto tab=lfoTabs::bounds(lfo);scaledClick(tab.x+tab.w/2,tab.y+48+tab.h/2);
+        int wave=lfoParam(lfo,3),random=lfoParam(lfo,7);
+        auto index=[&]{return state[random]>0?5+discrete(random,state[random]):discrete(wave,state[wave]);};
+        auto verify=[&](const State &before,int expected){
+          check(index()==expected,"LFO wheel/menu shape mismatch");
+          check(state[random]==(expected>=6?(expected-5)/2.:0),"LFO random shape encoding");
+          if(expected<6)check(state[wave]==expected/5.,"LFO classic shape encoding");
+          for(int p=0;p<Count;++p)if(p!=wave&&p!=random)check(state[p]==before[p],"LFO shape edited unrelated parameter");
+        };
+        auto menu=[&](int chosen){auto before=state;expectedLfoShape=index();popupChoice=chosen+1;int calls=popupCalls;
+          scaledClick(shape.x+shape.w/2,shape.y+48+8);pump();expectedLfoShape=-1;popupChoice=-999;
+          check(popupCalls==calls+1,"LFO shape menu missing");verify(before,chosen);
+        };
+        for(int start=0;start<8;++start){
+          menu(start);int expected=start;unsigned visited=1u<<start;
+          for(int step=0;step<8;++step){auto before=state;shapeWheel(120);expected=std::min(7,expected+1);verify(before,expected);visited|=1u<<expected;}
+          // Wheel-to-menu coherence and checked item after the upper clamp.
+          menu(7);
+          for(int step=0;step<8;++step){auto before=state;shapeWheel(-120);expected=std::max(0,expected-1);verify(before,expected);visited|=1u<<expected;}
+          check(visited==255,"Wheel did not visit every LFO shape including S&H/SMOOTH");
+          menu(start);expected=start;
+          for(int step=0;step<8;++step){auto before=state;shapeWheel(-120);expected=std::max(0,expected-1);verify(before,expected);}
+          for(int step=0;step<8;++step){auto before=state;shapeWheel(120);expected=std::min(7,expected+1);verify(before,expected);}
+          menu(start);
+        }
+      }
+      {auto tab=lfoTabs::bounds(0);scaledClick(tab.x+tab.w/2,tab.y+48+tab.h/2);}
+      const int identities[]={0,1,11,12,13,2,3,4,5,6,7,8,9,10};
+      for(int slot=0;slot<12;++slot)for(int display=0;display<14;++display){
+        auto c=matrixControls()[slot*3];int id=c.id,extension=SourceExtensionFirst+slot;
+        int current=effectiveSource(state,slot);expectedSourcePosition=0;
+        while(identities[expectedSourcePosition]!=current)++expectedSourcePosition;
+        auto before=state;popupChoice=display+1;injectPointer=true;
+        scaledClick(c.x+c.w/2,c.y+48+8,display%2);pump();injectPointer=false;popupChoice=-999;expectedSourcePosition=-1;
+        int source=identities[display];check(effectiveSource(state,slot)==source,"Displayed source selected wrong internal identity");
+        if(source<11)check(state[id]==source/10.&&state[extension]==0,"Historical source encoding changed");
+        else check(state[extension]==(source-10)/3.,"Extended LFO source encoding changed");
+        for(int p=0;p<Count;++p)if(p!=id&&p!=extension)check(state[p]==before[p],"Source menu edited unrelated state");
+        auto wheel=[&](int delta){POINT point{int((c.x+c.w/2)*scale),int((c.y+48+8)*scale)};ClientToScreen(w,&point);SendMessageW(w,WM_MOUSEWHEEL,MAKEWPARAM(0,short(delta)),MAKELPARAM(point.x,point.y));};
+        wheel(120);check(effectiveSource(state,slot)==identities[std::min(13,display+1)],"Source wheel does not follow displayed order");
+        if(display<13){wheel(-120);check(effectiveSource(state,slot)==source,"Source wheel reverse mapping");}
+      }
     }
+    check(sourceMenuChecks==12*14*4,"Not all source choices/slots/scales inspected");
+    check(lfoShapeMenuChecks==4*8*4*4,"Not all LFO shapes/tabs/scales inspected");
+    std::cout<<"PASS all 8 LFO shapes: every starting shape, forward/backward clamping, menu/wheel coherence, 4 LFOs x 4 scales; unrelated state preserved\n";
+    std::cout<<"PASS exact Source menu order/checkmarks and all 14 identities on 12 slots at 4 scales; stable /10 and LFO extension encoding; forward/reverse wheel mapping\n";
     pointerScale=1;editor.resize(960,568);auto heldState=state;popupChoice=0;fixtureHeld=true;SendMessageW(w,WM_LBUTTONDOWN,MK_LBUTTON,MAKELPARAM(70,327));check(GetCapture()==w,"Dismissal did not own held release");SendMessageW(w,WM_LBUTTONDOWN,MK_LBUTTON,MAKELPARAM(684,247));fixtureHeld=false;SendMessageW(w,WM_LBUTTONUP,0,MAKELPARAM(684,247));popupChoice=-999;check(state==heldState&&GetCapture()!=w,"Held dismissal clicked through or retained capture");
     editor.resize(960, 568);
+    editor.setTheme(theme::Id::Steel);
+    // Matrix dropdown opening belongs to completed clicks, not button holds.
+    state=defaults();popupChoice=0;int menuCount=popupCalls;
+    SendMessageW(w,WM_LBUTTONDOWN,MK_LBUTTON,MAKELPARAM(60,MatrixFirstRow+48+9));
+    check(popupCalls==menuCount,"Matrix menu opened while opening button held");
+    SendMessageW(w,WM_LBUTTONUP,0,MAKELPARAM(60,MatrixFirstRow+48+9));
+    check(popupCalls==menuCount+1,"Matrix menu did not persist/open on completed click");popupChoice=-999;
+    // Amount only: dead zone, axis lock, both signs and Shift sensitivity.
+    auto amountControl=matrixControls()[2];int ax=amountControl.x+amountControl.w/2,ay=amountControl.y+48+10;
+    auto dragAmount=[&](int dx,int dy,int laterX,int laterY,bool fine){
+      int id=amountControl.id;state[id]=.5;
+      SendMessageW(w,WM_LBUTTONDOWN,MK_LBUTTON,MAKELPARAM(ax,ay));
+      SendMessageW(w,WM_MOUSEMOVE,MK_LBUTTON,MAKELPARAM(ax+1,ay+1));check(state[id]==.5,"Amount dead zone edited value");
+      SendMessageW(w,WM_MOUSEMOVE,MK_LBUTTON|(fine?MK_SHIFT:0),MAKELPARAM(ax+dx,ay+dy));
+      double first=state[id];
+      SendMessageW(w,WM_MOUSEMOVE,MK_LBUTTON|(fine?MK_SHIFT:0),MAKELPARAM(ax+laterX,ay+laterY));
+      bool horizontal=std::abs(dx)>=std::abs(dy);double delta=horizontal?laterX:-laterY;
+      check(std::abs(state[id]-(.5+delta/(fine?2000.:200.)))<1e-10,"Amount axis lock/sign/fine value");
+      SendMessageW(w,WM_LBUTTONUP,0,MAKELPARAM(ax+laterX,ay+laterY));check(GetCapture()!=w,"Amount capture leaked");return first;
+    };
+    dragAmount(20,2,30,80,false);dragAmount(-20,2,-30,-80,false);
+    dragAmount(2,-20,80,-30,false);dragAmount(2,20,-80,30,false);
+    dragAmount(10,-10,-20,90,true);dragAmount(1,-10,80,20,true);
+    dragAmount(10,5,-20,80,false);
+    for(unsigned material=0;material<theme::Count;++material){editor.setTheme(theme::Id(material));state[amountControl.id]=.75;
+      auto shown=capture(w,960,568);check((shown[(ay-5)*960+amountControl.x+3]&0xffffff)==0xf5f5eb,"Amount field is not pale/opaque");
+      int black=0;for(int y=amountControl.y+49;y<amountControl.y+63;++y)for(int x=amountControl.x+3;x<amountControl.x+amountControl.w-3;++x)black+=(shown[y*960+x]&0xffffff)==0;
+      check(black>10,"Amount black text missing");
+    }
     editor.setTheme(theme::Id::Steel);
     // Filename is authoritative even when the saved sound exactly equals a factory.
     auto saveNamed = [&](const wchar_t *file, const char *label) {

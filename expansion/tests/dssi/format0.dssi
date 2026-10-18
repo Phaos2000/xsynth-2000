@@ -1,0 +1,14 @@
+# Fixture written for the importer, not an upstream patch
+xsynth-dssi patch format 0 begin
+name Test%20Patch%25
+osc1 1 2 0.3
+osc2 2 5 0.2
+sync 1
+balance 0.4
+lfo 2 3 0.2 0.3
+eg1 0.01 0.002 0.6 0.003 0.1 4
+eg2 0.02 0.003 0.7 0.004 0.2 5
+vcf 6 1.2 1
+glide 0.1
+volume 0.6
+xsynth-dssi patch end

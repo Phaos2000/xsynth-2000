@@ -1,0 +1,50 @@
+# Python and IDE caches
+__pycache__/
+*.py[cod]
+.vs/
+*.suo
+*.user
+
+# Local builds and compiled products
+build/
+build-*/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+Testing/
+*.obj
+*.pdb
+*.ilk
+*.tlog
+*.lib
+*.exp
+*.exe
+*.dll
+*.vst3
+
+# Local audit/benchmark output, staging, logs and packaged artifacts
+artifacts/
+dist/
+checkpoints/
+*-audit/
+performance-sound/
+performance-sound-validation/
+performance-interaction-output/
+interaction-test-output/
+benchmark/
+sound-validation-metrics.csv
+*.log
+*.tmp
+*.bak
+*.zip
+*.7z
+
+# Optional external DSSI corpus: retain locally, not in the public repository.
+# See expansion/tests/EXTERNAL-FIXTURES.md. Own native/WAV test references,
+# synthetic DSSI fixtures, source snapshots, fixture CSVs and artwork stay tracked.
+/expansion/tests/dssi/banks/
+/expansion/tests/dssi/**/*.wav
+
+# Retired one-off mockup; the current wordmark has an independent generator.
+/expansion/tests/mockup-metal-title.ps1
+/expansion/assets/approved-reference.png

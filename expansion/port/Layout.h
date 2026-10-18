@@ -6,13 +6,13 @@
 namespace xs {
 enum class ControlKind { Knob, Selector, Amount, Toggle };
 struct Control { int id,x,y,w; const char *label; ControlKind kind; int valueWidth=54; };
-inline constexpr int MiddleRowBottom=370, MatrixFirstRow=MiddleRowBottom+32;
+inline constexpr int MiddleRowBottom=370;
 struct Bounds { int x,y,w,h; };
 struct Panel { int x,y,w,h; const char *label; };
 namespace faceGrid {
 inline constexpr int HeaderHeight=48, TopHeight=154, MiddleWidth=240;
 inline constexpr int ShellInset=1, SurfaceInset=2, HeaderInset=12, HeaderY=4, HeaderH=14;
-inline constexpr int KnobCenter=15, KnobDiameter=36, LabelHeight=13, AmountHeight=22;
+inline constexpr int KnobCenter=15, KnobDiameter=36, LabelHeight=13, AmountHeight=18;
 constexpr Bounds shell(const Panel &p) {return {p.x+ShellInset,p.y+ShellInset,p.w-2*ShellInset,p.h-2*ShellInset};}
 constexpr Bounds header(const Panel &p) {return {p.x+HeaderInset,p.y+HeaderY,p.w-2*HeaderInset,HeaderH};}
 }
@@ -52,6 +52,11 @@ constexpr Control centred(int origin,int y,int id,const char *label) {
  return field;
 }
 } // namespace moduleGrid
+namespace lfoTabs {
+inline constexpr int Y=moduleGrid::LastSelectors,Height=moduleGrid::SelectorHeight,Width=Height,Gap=2;
+inline constexpr int GroupWidth=4*Width+3*Gap,Left=(240-GroupWidth)/2;
+constexpr Bounds bounds(int index){return {Left+index*(Width+Gap),Y,Width,Height};}
+}
 namespace topGrid {
 inline constexpr int Knobs=30, Selectors=114, OscMargin=12, OscFieldWidth=68, OscGap=10;
 constexpr int oscFieldX(int origin,int column) {return origin+OscMargin+column*(OscFieldWidth+OscGap);}
@@ -101,12 +106,14 @@ inline constexpr Control mainControls[]={
  moduleGrid::knob(480,3,2,moduleGrid::LowerKnobs,20,"Filter Depth"),
  moduleGrid::pair(480,0,moduleGrid::LastSelectors,Curve2,"Curve"),
  moduleGrid::pair(480,1,moduleGrid::LastSelectors,Loop2,"Loop"),
- moduleGrid::knob(720,2,0,moduleGrid::TopKnobs,8,"Glide Time"),
- moduleGrid::knob(720,2,1,moduleGrid::TopKnobs,MasterTune,"Master Tune"),
+ moduleGrid::knob(720,3,0,moduleGrid::TopKnobs,8,"Glide Time"),
+ moduleGrid::knob(720,3,1,moduleGrid::TopKnobs,Detune,"Detune"),
+ moduleGrid::knob(720,3,2,moduleGrid::TopKnobs,MasterTune,"Master Tune"),
  moduleGrid::full(720,moduleGrid::FirstSelectors,VoiceMode,"Voice Mode"),
  moduleGrid::pair(720,0,moduleGrid::MiddleSelectors,Voices,"Voices"),
- moduleGrid::pair(720,1,moduleGrid::MiddleSelectors,GlideMode,"Glide Mode"),
- moduleGrid::full(720,moduleGrid::LastSelectors,BendRange,"Bend Range"),
+ moduleGrid::pair(720,1,moduleGrid::MiddleSelectors,Unison,"Unison"),
+ moduleGrid::pair(720,0,moduleGrid::LastSelectors,GlideMode,"Glide Mode"),
+ moduleGrid::pair(720,1,moduleGrid::LastSelectors,BendRange,"Bend Range"),
 };
 #undef K
 #undef S
@@ -121,28 +128,32 @@ constexpr Bounds labelBounds(const Control &c) {
  return {c.x,c.y-offset,c.w,faceGrid::LabelHeight};
 }
 namespace matrixGrid {
-inline constexpr int HalfWidth=480, RowStep=40;
+// Shared spacing revision: clear the module title without changing row rhythm.
+inline constexpr int HeaderClearance=1, LabelHeight=12, LabelToFieldGap=3;
+inline constexpr int LabelY=MiddleRowBottom+faceGrid::HeaderY+faceGrid::HeaderH+HeaderClearance;
+inline constexpr int FirstRow=LabelY+LabelHeight+LabelToFieldGap;
+inline constexpr int HalfWidth=480, RowStep=19;
 inline constexpr int FieldX[]={30,150,366}, FieldWidth[]={96,202,102};
-constexpr int origin(int slot) {return slot<3?0:HalfWidth;}
-constexpr int row(int slot) {return MatrixFirstRow+(slot%3)*RowStep;}
+constexpr int origin(int slot) {return slot<6?0:HalfWidth;}
+constexpr int row(int slot) {return FirstRow+(slot%6)*RowStep;}
 }
-inline constexpr std::array<Control,18> matrixControls() {
- std::array<Control,18> result{};
- for(int slot=0;slot<6;++slot) {
-   int x=matrixGrid::origin(slot),y=matrixGrid::row(slot),id=MatrixFirst+slot*3;
+inline constexpr int MatrixFirstRow=matrixGrid::FirstRow;
+inline constexpr std::array<Control,36> matrixControls() {
+ std::array<Control,36> result{};
+ for(int slot=0;slot<MatrixSlots;++slot) {
+   int x=matrixGrid::origin(slot),y=matrixGrid::row(slot),id=matrixId(slot);
    for(int column=0;column<3;++column)
     result[slot*3+column]={id+column,x+matrixGrid::FieldX[column],y,matrixGrid::FieldWidth[column],column==0?"Source":column==1?"Destination":"Amount",column==2?ControlKind::Amount:ControlKind::Selector};
  }
  return result;
 }
-inline int effectiveId(const Control &c,const State &s) { return c.id==4 && s[LfoClock]>=.5?Division:c.id; }
-inline constexpr int DestinationParams[]={0,1,-1,2,3,-2,XDepth,7,21,22,4,5,9,10,12,15,16,18};
+inline int effectiveId(const Control &c,const State &s,int lfo=0) {if(c.id>=ExtraLfoFirst&&c.id<NewMatrixFirst){int l=(c.id-ExtraLfoFirst)/9+1;return lfoBase(c.id)==4&&s[lfoParam(l,4)]>=.5?lfoParam(l,8):c.id;}int f=lfoField(c.id);if(f>=0){if(f==0&&s[lfoParam(lfo,4)]>=.5)f=8;return lfoParam(lfo,f);}return c.id; }
 inline unsigned modulationRoutes(const State &s,int id) {
  unsigned mask=0;
- for(int slot=0;slot<6;++slot) {
-  int k=MatrixFirst+slot*3;
-  int destination=discrete(k+1,s[k+1]);
-  if(discrete(k,s[k]) && s[k+2]!=.5 &&
+ for(int slot=0;slot<MatrixSlots;++slot) {
+  int k=matrixId(slot);
+  int destination=routeDestination(s,slot);
+  if(effectiveSource(s,slot) && s[k+2]!=.5 &&
       (DestinationParams[destination]==(id==Division?4:id) || (destination==11 && id==6)))mask|=1u<<slot;
  }
  return mask;

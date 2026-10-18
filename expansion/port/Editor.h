@@ -11,6 +11,7 @@ public:
   std::function<State()> read;
   std::function<void(int)> begin, end;
   std::function<void(int, double)> change;
+  std::function<bool(const State&)> restorePatch; // Optional atomic controller/processor transaction.
   std::function<void()> dpiChanged;
   explicit Editor(const wchar_t *preferenceKey = theme::PreferenceKey);
   ~Editor();

@@ -4,7 +4,7 @@
 #include <atomic>
 #include <mutex>
 namespace xs {
-struct StateMessage { State value=defaults(); uint64_t generation=0; };
+struct StateMessage { State value=defaults(); uint64_t generation=0; bool preservePerformance=false; };
 class StateMailbox {
   std::array<StateMessage,3> buffers{};
   std::atomic<unsigned> middle{1};
@@ -26,9 +26,9 @@ class StateExchange {
   StateMessage ui;
   uint64_t requested=0;
 public:
-  void restore(const State &s) {
+  void restore(const State &s,bool preservePerformance=false) {
     std::lock_guard<std::mutex> lock(uiOnly);
-    ui={s,++requested}; incoming.publish(ui);
+    ui={s,++requested,preservePerformance}; incoming.publish(ui);
   }
   State snapshot() {
     std::lock_guard<std::mutex> lock(uiOnly);

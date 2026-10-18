@@ -42,18 +42,20 @@ void geometryChecks(const char* csvPath) {
  for(int i=0;i<7;++i){const auto&a=control(first[i]);const auto&b=control(second[i]);
   check(a.x+240==b.x&&a.y==b.y&&a.valueWidth==b.valueWidth,"EG knob templates differ");
   check(same(fieldBounds(a),fieldBounds(b),240)&&same(labelBounds(a),labelBounds(b),240),"EG field/label templates differ");}
- for(int id:std::initializer_list<int>{14,20,Voices,GlideMode,LfoPhase,LfoPolarity}){
+ for(int id:std::initializer_list<int>{14,20,Voices,Unison,LfoPhase,LfoPolarity}){
   check(fieldBounds(control(id)).y+faceGrid::HeaderHeight==355,"Middle shared outer top drift");
   check(labelBounds(control(id)).y+faceGrid::HeaderHeight==341,"Middle shared label row drift");}
+ for(int column=0;column<3;++column){int ids[]={8,Detune,MasterTune};auto expected=moduleGrid::knob(720,3,column,moduleGrid::TopKnobs,ids[column],"");const auto &c=control(ids[column]);check(c.x==expected.x&&c.y==expected.y&&c.valueWidth==expected.valueWidth,"VOICE three-knob shared grid");}
+ for(int column=0;column<2;++column){int ids[]={GlideMode,BendRange};auto expected=moduleGrid::pair(720,column,moduleGrid::LastSelectors,ids[column],"");const auto &c=control(ids[column]);check(c.x==expected.x&&c.y==expected.y&&c.w==expected.w,"VOICE lower paired grid");}
  check(control(Curve1).x*2+control(Curve1).w==720,"EG1 Curve is not centered on x=360");
  check(labelBounds(control(Curve1)).x*2+labelBounds(control(Curve1)).w==720,"EG1 Curve label not centered");
  for(int left:std::initializer_list<int>{26,LfoPhase,Curve2,Voices}){
-  int right=left==26?LfoClock:left==LfoPhase?LfoPolarity:left==Curve2?Loop2:GlideMode;
+  int right=left==26?LfoClock:left==LfoPhase?LfoPolarity:left==Curve2?Loop2:Unison;
   const auto&a=control(left);const auto&b=control(right);int origin=(a.x/240)*240;
   check(a.x-origin==12&&origin+240-b.x-b.w==12&&b.x-a.x-a.w==12,"Paired margins or central gap drift");
   check(a.w==102&&b.w==102&&a.y==b.y,"Paired selector geometry drift");
   check(labelBounds(a).y==labelBounds(b).y,"Paired label baseline drift");}
- for(int id:{VoiceMode,BendRange})check(control(id).x==732&&control(id).w==216,"Full VOICE margins drift");
+ for(int id:{VoiceMode})check(control(id).x==732&&control(id).w==216,"Full VOICE margins drift");
  for(int i=0;i<6;++i){auto p=panels[i];auto h=faceGrid::header(p);check(p.y==0&&p.h==154&&h.y==4&&h.h==14,"Top panel shell/header drift");if(i<5)check(p.x+p.w==panels[i+1].x,"Top module gutter drift");}
  for(int i=6;i<10;++i)check(panels[i].x==(i-6)*240&&panels[i].y==154&&panels[i].w==240&&panels[i].h==216,"Middle panel geometry drift");
  for(auto&c:mainControls)if(c.y<154){
@@ -63,13 +65,15 @@ void geometryChecks(const char* csvPath) {
  check(control(7).x+15==530,"MIXER knob off center");
  check(control(21).x+15==624&&control(22).x+15==708&&control(Keytrack).x+15==792,"VCF row off center");
  auto routes=matrixControls();
- for(int row=0;row<3;++row)for(int column=0;column<3;++column){auto a=fieldBounds(routes[row*3+column]),b=fieldBounds(routes[(row+3)*3+column]);check(same(a,b,480),"Matrix halves differ");check(a.y+48==450+row*40,"Matrix row spacing drift");}
+ check(matrixGrid::LabelY==389&&MatrixFirstRow==404,"Shared matrix spacing revision drift");
+ check(matrixGrid::LabelY==faceGrid::header(panels[10]).y+faceGrid::HeaderH+matrixGrid::HeaderClearance,"Matrix headings do not clear title");
+ for(int row=0;row<6;++row)for(int column=0;column<3;++column){auto a=fieldBounds(routes[row*3+column]),b=fieldBounds(routes[(row+6)*3+column]);check(same(a,b,480),"Matrix halves differ");check(a.y+48==452+row*19&&a.h==18,"Matrix row spacing drift");check(a.x==matrixGrid::FieldX[column]&&a.w==matrixGrid::FieldWidth[column],"Matrix horizontal geometry drift");check(a.y+a.h+48<=565,"Matrix bottom padding lost");}
  HDC dc=CreateCompatibleDC(nullptr);HFONT font=CreateFontW(-10,0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,NONANTIALIASED_QUALITY,DEFAULT_PITCH,L"Tahoma");auto previous=SelectObject(dc,font);TEXTMETRIC tm{};GetTextMetrics(dc,&tm);
  auto baseline=[&](Bounds r){return r.y+faceGrid::HeaderHeight+(r.h-tm.tmHeight)/2+tm.tmAscent;};
  std::cout<<"GEOMETRY: native Tahoma height="<<tm.tmHeight<<" ascent="<<tm.tmAscent<<"; EG Filter Depth/Voices outer tops=355, label baseline="<<baseline(labelBounds(control(14)))<<"\n";
  check(baseline(labelBounds(control(14)))==baseline(labelBounds(control(Voices))),"Label baseline mismatch");
  if(csvPath){std::ofstream csv(csvPath);csv<<"id,label,knob_center_x,knob_center_y,field_x,field_y,field_w,field_h,label_x,label_y,label_w,label_h,label_baseline\n";
-  auto emit=[&](const Control&c){auto f=fieldBounds(c);auto l=c.id<MatrixFirst?labelBounds(c):Bounds{-1,-49,-1,-1};csv<<c.id<<','<<c.label<<','<<(c.kind==ControlKind::Knob?c.x+15:-1)<<','<<(c.kind==ControlKind::Knob?c.y+15+48:-1)<<','<<f.x<<','<<f.y+48<<','<<f.w<<','<<f.h<<','<<l.x<<','<<l.y+48<<','<<l.w<<','<<l.h<<','<<(c.id<MatrixFirst?baseline(l):-1)<<'\n';};for(auto&c:mainControls)emit(c);for(auto&c:routes)emit(c);check(bool(csv),"Geometry CSV write failed");}
+  auto emit=[&](const Control&c){bool main=false;for(const auto &m:mainControls)main|=m.id==c.id;auto f=fieldBounds(c);auto l=main?labelBounds(c):Bounds{-1,-49,-1,-1};csv<<c.id<<','<<c.label<<','<<(c.kind==ControlKind::Knob?c.x+15:-1)<<','<<(c.kind==ControlKind::Knob?c.y+15+48:-1)<<','<<f.x<<','<<f.y+48<<','<<f.w<<','<<f.h<<','<<l.x<<','<<l.y+48<<','<<l.w<<','<<l.h<<','<<(main?baseline(l):-1)<<'\n';};for(auto&c:mainControls)emit(c);for(auto&c:routes)emit(c);check(bool(csv),"Geometry CSV write failed");}
  SelectObject(dc,previous);DeleteObject(font);DeleteDC(dc);
  std::cout<<"PASS: exact shell, knob, label, field, paired/centered selector and mirrored matrix geometry\n";
 }
@@ -102,7 +106,7 @@ int main(int argc,char** argv) {
         SendMessageW(first, WM_LBUTTONUP, 0, point(x, y));
       };
       const auto closed = capture(first, width, height);
-      for(int id:std::initializer_list<int>{14,20,xs::Voices,xs::GlideMode}) {
+      for(int id:std::initializer_list<int>{14,20,xs::Voices,xs::Unison}) {
         const auto field=xs::fieldBounds(control(id));
         int px=int(std::round((field.x+2)*scale)),py=int(std::round(355*scale));
         check((closed[py*width+px]&0xffffff)==(control(id).kind==xs::ControlKind::Knob?0x041216:0xa5c3c2),"Rendered shared-band outer top drift");
