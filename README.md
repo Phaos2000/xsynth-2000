@@ -1,52 +1,48 @@
 # Xsynth 2000 v0.1.1
 
-Developed by Phaos · https://phaos.neocities.org/ · phaos2000@pm.me
+Developed by Phaos · [https://phaos.neocities.org/](https://phaos.neocities.org/) · [phaos2000@pm.me](mailto:phaos2000@pm.me)
 
-Xsynth 2000 is a digital synthesizer developed into something new from Steve J. Brookes' Xsynth
-1.0.2 (1999), with a Windows x64 VST3 implementation and a retro graphical
-interface. This branch contains the v0.1.1 sources. The original `v0.1.0` tag
-and release downloads remain preserved as a historical checkpoint.
+Xsynth 2000 started from Steve J. Brookes' Xsynth 1.0.2 from 1999, but has grown into a substantially different digital synthesizer. This version is a Windows x64 VST3 with a new retro-style interface, expanded synthesis engine and a much larger modulation system.
+
+This branch contains the v0.1.1 source. The original `v0.1.0` tag and release downloads are still preserved as a historical checkpoint.
 
 ## Instrument
 
-- Two CLASSIC / CLEAN oscillators, −24 to +24 semitones, FM / PM and hard sync.
-- Six mixer modes; LP / HP / BP / NOTCH filtering, 12 / 24 dB/oct and keytracking.
-- Two expanded envelopes and four complete, independent LFOs.
-- Twelve matrix routes, fourteen sources and forty-two destinations.
-- Poly/mono modes, glide, master tuning and Unison OFF / 2 / 4 / 8 within a
-  fixed 32-physical-voice pool, with dynamic group normalization.
-- Historical factory banks, native patches, Xsynth and Xsynth-DSSI import.
-- Six themes, remembered resizing and an original fixed bitmap wordmark.
+Xsynth 2000 has two oscillators, each with CLASSIC and CLEAN modes, a −24 to +24 semitone pitch range, FM, PM and hard sync. CLASSIC keeps the direct digital character of the original-style oscillator path, including aliasing, while CLEAN reduces aliasing without changing the tuning.
 
-CLASSIC retains direct digital oscillator behavior, including aliasing. CLEAN
-reduces aliasing without changing oscillator tuning. The faithful Xsynth VST3
-remains a separate product with distinct class IDs. Four LFO editor buttons
-select which LFO is shown; all four continue running. Each has independent
-Pitch/Filter Depth, with direct pitch affecting both oscillators.
+The mixer has six modes, followed by LP, HP, BP and NOTCH filtering with 12 or 24 dB/oct slopes and keytracking. There are two expanded envelopes, four fully independent LFOs, and a twelve-slot modulation matrix with fourteen sources and forty-two destinations.
+
+Voice handling includes polyphonic and monophonic modes, glide, master tuning and Unison OFF / 2 / 4 / 8. Unison works inside a fixed 32-physical-voice pool and uses dynamic group normalization to keep level changes under control while preserving natural beating.
+
+The plugin also includes the historical factory banks, native patch support, Xsynth patch import and Xsynth-DSSI bank import.
+
+The GUI includes six themes, remembered resizing and an original fixed bitmap wordmark. The four LFO buttons simply choose which LFO is being edited; all four continue running in the background. Each LFO has its own Pitch Depth and Filter Depth, with direct pitch modulation affecting both oscillators.
 
 ## Controls and presets
 
-Drag knobs vertically; Shift gives fine adjustment. Ordinary VCO Pitch dragging
-and wheel ticks use exact semitones. Double-click restores defaults. Matrix
-Amount accepts horizontal or vertical dragging with dominant-axis lock, a small
-dead zone, Shift fine adjustment and double-click zero. Dropdowns open on a
-completed click and persist for selection. Cycling buttons use left-click next
-and right-click previous. Source menus group LFO 1–4 without changing saved
-source identities or normalized automation.
+Knobs drag vertically, with Shift for fine adjustment. VCO Pitch uses exact semitone steps during normal dragging and mouse-wheel movement; Shift allows continuous fine adjustment. Double-click restores the default value.
 
-The LFO Wave menu and mouse wheel share all eight shapes, in this order:
-SINE, TRI, SAW UP, SAW DN, SQUARE, PULSE, S&H, SMOOTH. Wheel up advances;
-wheel down reverses, clamping at the ends. All four LFOs behave identically.
+Matrix Amount can be dragged either horizontally or vertically. The control locks to the dominant drag direction after a small dead zone, Shift gives fine adjustment, and double-click returns it to zero.
 
-The header contains INIT and fifty historical records in three banks: forty-two
-sounds and eight informational entries, with intentional duplicates. LOAD PATCH
-also imports DSSI banks. SAVE PATCH writes `.XseDev` files without overwriting
-factory data. Their filename stem provides the displayed patch name; arbitrary
-filenames are not embedded in host project state.
+Dropdowns open on a completed click and stay open until an item is chosen or the menu is dismissed. Cycling controls use left-click for the next value and right-click for the previous one.
 
-Click the logo for About. THEME cycles STEEL (default), 98, INDUSTRIAL,
-MULTIMEDIA, 2000 and SAND. Theme is a per-user preference separate from patches.
-THEME and website/email clicks keep About open; clicking elsewhere dismisses it.
+The modulation Source menus list LFO 1–4 together, while keeping the existing saved source identities and automation behavior intact.
+
+The LFO Wave menu and mouse wheel use the same eight shapes:
+
+**SINE → TRI → SAW UP → SAW DN → SQUARE → PULSE → S&H → SMOOTH**
+
+Wheel up moves forward through the list and wheel down moves backward, clamping at the ends. All four LFOs behave the same way.
+
+The preset header contains INIT and fifty historical records across three banks: forty-two sounds and eight informational entries, including the original intentional duplicates.
+
+`LOAD PATCH` can also import DSSI banks. `SAVE PATCH` writes `.XseDev` files without modifying the factory data. The patch filename becomes the displayed patch name; arbitrary filenames are not stored inside host project state.
+
+Click the logo to open About. `THEME` cycles through:
+
+**STEEL** (default), **98**, **INDUSTRIAL**, **MULTIMEDIA**, **2000**, and **SAND**.
+
+Theme choice is stored as a per-user preference rather than inside patches. Clicking THEME or the website/email links keeps About open; clicking elsewhere closes it.
 
 ## Build and validation
 
