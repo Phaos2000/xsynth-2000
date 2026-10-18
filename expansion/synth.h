@@ -1,0 +1,3 @@
+#define WAVE_POINTS 100
+#define SAMPLE_RATE 44100
+#define BUFF_SIZE 256

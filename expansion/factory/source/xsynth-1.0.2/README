@@ -1,0 +1,80 @@
+Xsynth - a real-time software synthesizer
+
+Copyright (C) 1999 S. J. Brookes
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License in the file COPYING for more details.
+
+
+                                  Xsynth
+                                  ------
+
+Introduction
+------------
+Xsynth is a real-time software synthesizer for any computer running Linux,
+the Open Sound System, and X windows.  The program also requires that the
+computer be equipped with a sound-card, and a MIDI keyboard is required to
+play the synthesizer.
+
+The synthesizer is monophonic (highest note priority) and presently operates
+in MIDI mode 2 (Omni-On Mono), ie. it receives on ALL MIDI channels.  It
+would be simple to change the code such that the synth would operate in MIDI
+mode 4 (Omni-Off Mono).  As well as receiving note on/off information, the
+synth also receives pitch-bend and modulation input from the external MIDI
+device.  The external modulation is routed to the filter cut-off frequency.
+
+The synth architecture should be familiar to anyone that has previously used
+an analogue synthesizer, and includes the following features:
+
+2 oscillators (with independent pitch, balance control, and oscillator sync)
+1 low frequency oscillator (used as a modulation source)
+2 envelope generators
+1 low pass filter
+portamento (slides pitch from a PREVIOUSLY HELD note)
+
+The control panel of the synthesizer appears in a window.  ALL the controls
+may be operated in real-time using the mouse.
+
+Error Messages
+--------------
+Some run-time errors are fatal, and if these are received then program will
+shut down (or should be shut down!).  These include:
+
+init_dsp: unable to open /dev/dsp
+init_midi: unable to open /dev/midi
+main: shmget error
+main: shmat error
+main: fork error for first child
+main: fork error for second child
+user_interface: cannot connect to X server
+user_interface: cannot open ________ font
+midi: cannot catch SIGUSR1
+synth: cannot catch SIGUSR1
+
+Other messages indicate problems that may affect the running of the program,
+but are not fatal.  These include:
+
+main: memory lock has failed
+main: problem setting process scheduling
+user_interface: unable to get background colour
+user_interface: unable to get foreground colour
+
+Further messages are used to indicate errors with the external MIDI device:
+
+error: midi receive problem
+error: current status byte is not set
+
+The last error may generally be recovered from by moving a different
+controller, eg. if pressing keys on the MIDI keyboard yields
+
+error: current status byte is not set
+
+then moving the pitch bend or modulation control should allow the program
+to recover.

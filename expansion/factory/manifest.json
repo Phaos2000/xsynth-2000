@@ -1,0 +1,186 @@
+{
+  "research_date": "2026-10-17",
+  "records": 50,
+  "sound_records": 42,
+  "informational_records": 8,
+  "banks": [
+    {
+      "display": "XSYNTH 1.0.2",
+      "filename": "11 individual .Xpatch files",
+      "project": "Xsynth 1.0.2",
+      "author": "Steve J. Brookes",
+      "date": "1999",
+      "url": "https://www.ibiblio.org/pub/linux/apps/sound/misc/xsynth-1.0.2.tar.gz",
+      "format": "binary physical-value Xpatch",
+      "records": 11,
+      "informational_records": 0,
+      "bundled": true,
+      "redistribution_basis": "GPL-2.0-or-later upstream distribution; original README, author and COPYING notices retained; see BANKS.md"
+    },
+    {
+      "display": "XSYNTH-DSSI FACTORY",
+      "filename": "extra/factory_patches.Xsynth",
+      "project": "Xsynth-DSSI 0.9.4",
+      "author": "Steve J. Brookes; DSSI adaptation/distribution by Sean Bolton",
+      "date": "0.9.4 archive (2010)",
+      "url": "https://deb.debian.org/debian/pool/main/x/xsynth-dssi/xsynth-dssi_0.9.4.orig.tar.gz",
+      "format": "DSSI text patch format 0",
+      "records": 14,
+      "informational_records": 4,
+      "bundled": true,
+      "redistribution_basis": "GPL-2.0-or-later upstream distribution; original README, author and COPYING notices retained; see BANKS.md"
+    },
+    {
+      "display": "XSYNTH-DSSI 0.1",
+      "filename": "extra/version_0.1_patches.Xsynth",
+      "project": "Xsynth-DSSI 0.9.4 / legacy 0.1 set",
+      "author": "Sean Bolton / upstream DSSI distribution; per-patch authors unspecified",
+      "date": "0.1 legacy material in 0.9.4 (2010)",
+      "url": "https://deb.debian.org/debian/pool/main/x/xsynth-dssi/xsynth-dssi_0.9.4.orig.tar.gz",
+      "format": "DSSI text patch format 0",
+      "records": 25,
+      "informational_records": 4,
+      "bundled": true,
+      "redistribution_basis": "GPL-2.0-or-later upstream distribution; original README, author and COPYING notices retained; see BANKS.md"
+    }
+  ],
+  "source_files": [
+    {
+      "file": "source/xsynth-1.0.2/AUTHOR",
+      "sha256": "9059CB855129BAE2F1265623282E046A593F392AA87EFF600AF73F09CE820224"
+    },
+    {
+      "file": "source/xsynth-1.0.2/bell.Xpatch",
+      "sha256": "4CC1658A97956B6EA2C8662FA69CF96CBDA2FC4F0B963181E39B550FABD5B708"
+    },
+    {
+      "file": "source/xsynth-1.0.2/COPYING",
+      "sha256": "B8A2F73F743DC1A51AFF23F1AACBCA4B868564DB52496FA3C0CABA755BFD1EAF"
+    },
+    {
+      "file": "source/xsynth-1.0.2/default.Xpatch",
+      "sha256": "DB8ECBB8C7B714361BA07D6E8068AD77B60920544EA187CCBE5EBB09A76F48BF"
+    },
+    {
+      "file": "source/xsynth-1.0.2/heart_beat.Xpatch",
+      "sha256": "AA3B4EB1057FFA2503078C45F1CE39368AD31AD367A1E666AE348CAE86D8B820"
+    },
+    {
+      "file": "source/xsynth-1.0.2/plucked.Xpatch",
+      "sha256": "50D275E05CAD372F2F63BD8CB115AC3559E6115A8D9E595546D9CB1153F351B1"
+    },
+    {
+      "file": "source/xsynth-1.0.2/README",
+      "sha256": "5E9D47A07E070AE2F0F4C03A6C8F557C02F054D9DDCD6A4F81075BBDC405701C"
+    },
+    {
+      "file": "source/xsynth-1.0.2/reso_sweep.Xpatch",
+      "sha256": "1D67D402B1162AD2191B4E0DF44E53706780A10DE5E9994B8EBBFECDB62510AA"
+    },
+    {
+      "file": "source/xsynth-1.0.2/squelchy_bass.Xpatch",
+      "sha256": "CB577205AFEAFE3F16EE220B5DA4988C2C5113765039D46002933CD4D0B4954B"
+    },
+    {
+      "file": "source/xsynth-1.0.2/strings.Xpatch",
+      "sha256": "7BEF2A18C54E08D51116DBBC5A4280BEA8812022F02D4B2759D0ED9B18D9CA1C"
+    },
+    {
+      "file": "source/xsynth-1.0.2/sync_bass.Xpatch",
+      "sha256": "37031156BA1B995185D08443354E7F6EF9B1B8C2CDEB4361A98CBFA5A0A2BF92"
+    },
+    {
+      "file": "source/xsynth-1.0.2/sync_sweep.Xpatch",
+      "sha256": "C9030977DAE34E13803F25D5AFAC43F5D8B734F5F14FE2E882F8DD435A860687"
+    },
+    {
+      "file": "source/xsynth-1.0.2/theremin.Xpatch",
+      "sha256": "2FB9F1BF4C4A005B452350FA283590E3D428175BF233D4437DC98242409ACA04"
+    },
+    {
+      "file": "source/xsynth-1.0.2/voice.Xpatch",
+      "sha256": "A07A44209410C749733A88BE082F64037C2CA05910D85EEEEAB97F69243D1C5D"
+    },
+    {
+      "file": "source/xsynth-dssi-0.9.4/AUTHORS",
+      "sha256": "AC13F82C7E200E42C420346B3D97BE606CB15E0E4323150983C3ECB1EF73E351"
+    },
+    {
+      "file": "source/xsynth-dssi-0.9.4/COPYING",
+      "sha256": "AB15FD526BD8DD18A9E77EBC139656BF4D33E97FC7238CD11BF60E2B9B8666C6"
+    },
+    {
+      "file": "source/xsynth-dssi-0.9.4/factory_patches.Xsynth",
+      "sha256": "65673A083448538146019AB0E74EE8257E6C4C092A7A6D27786BEEFA797B75C3"
+    },
+    {
+      "file": "source/xsynth-dssi-0.9.4/Makefile.am",
+      "sha256": "C2CFE5F214148092E9B7EABE67286AFA325B969E35013D9607683934328B26D5"
+    },
+    {
+      "file": "source/xsynth-dssi-0.9.4/README",
+      "sha256": "0F63D0D14A195AB8F8FAFABC116A4B7A1B50CA69EF7C551CB1E052843A8F6FAD"
+    },
+    {
+      "file": "source/xsynth-dssi-0.9.4/version_0.1_patches.Xsynth",
+      "sha256": "291D7BCF81A2318D8D7A5ED30C8F43910A3F68A1CBAC19DA3E2E99DD5BB937A0"
+    }
+  ],
+  "external_only": [
+    {
+      "filename": "MoogLikeBank",
+      "url": "https://linuxsynths.com/XsynthBanksDemos/xsynth.html",
+      "author": "LinuxSynths / Brian Collins collection; individual patch authors not independently verified",
+      "date": "2018 for XsynthBank2018 and MoogLikeBank; otherwise unspecified",
+      "records": 58,
+      "format": "DSSI text bank",
+      "sha256": "9704AD2481FACEE9007E039F46BC70915E48CA6DCE74BC13CEA100596CEDB6BE",
+      "bundled": false,
+      "redistribution_basis": "Explicit redistribution permission not verified; external import/local tests only"
+    },
+    {
+      "filename": "XsynthBank1",
+      "url": "https://linuxsynths.com/XsynthBanksDemos/xsynth.html",
+      "author": "LinuxSynths / Brian Collins collection; individual patch authors not independently verified",
+      "date": "2018 for XsynthBank2018 and MoogLikeBank; otherwise unspecified",
+      "records": 60,
+      "format": "DSSI text bank",
+      "sha256": "50E17F47E6A766389FA264442A7ED89DC5288CAD36E96D968D44A458FD9262CB",
+      "bundled": false,
+      "redistribution_basis": "Explicit redistribution permission not verified; external import/local tests only"
+    },
+    {
+      "filename": "XsynthBank2018",
+      "url": "https://linuxsynths.com/XsynthBanksDemos/xsynth.html",
+      "author": "LinuxSynths / Brian Collins collection; individual patch authors not independently verified",
+      "date": "2018 for XsynthBank2018 and MoogLikeBank; otherwise unspecified",
+      "records": 61,
+      "format": "DSSI text bank",
+      "sha256": "0909F227BC23F226DF00D17BF8C4329B5EC5D09D8542F826F3E32E5B87548CDE",
+      "bundled": false,
+      "redistribution_basis": "Explicit redistribution permission not verified; external import/local tests only"
+    },
+    {
+      "filename": "XsynthBank3",
+      "url": "https://linuxsynths.com/XsynthBanksDemos/xsynth.html",
+      "author": "LinuxSynths / Brian Collins collection; individual patch authors not independently verified",
+      "date": "2018 for XsynthBank2018 and MoogLikeBank; otherwise unspecified",
+      "records": 60,
+      "format": "DSSI text bank",
+      "sha256": "F4BFCCF075AADAADB5955720A17762068042CDCA5924D821B52017575CBA4EE4",
+      "bundled": false,
+      "redistribution_basis": "Explicit redistribution permission not verified; external import/local tests only"
+    },
+    {
+      "filename": "extra/friendly_patches.Xsynth",
+      "url": "https://deb.debian.org/debian/pool/main/x/xsynth-dssi/xsynth-dssi_0.9.4.orig.tar.gz",
+      "author": "Sean Bolton, Steve J. Brookes, Silvan (Michael McIntyre)",
+      "date": "0.9.4 archive (2010)",
+      "records": 57,
+      "format": "DSSI text bank",
+      "sha256": "433DCEFF5A17985B2F5C230367FC233E31A1F341C170FF16158031746B08059F",
+      "bundled": false,
+      "redistribution_basis": "Related upstream source explicitly questions contributor patch terms; excluded"
+    }
+  ]
+}
