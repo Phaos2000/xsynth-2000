@@ -1,3 +1,5 @@
+[![Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/phaos)
+
 # Xsynth 2000
 
 **Windows x64 VST3 · Developed by Phaos**
