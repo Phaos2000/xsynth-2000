@@ -14,7 +14,7 @@ What began as a Windows VST3 port grew into a substantially expanded instrument,
 
 ## To-Do / Being done
 
-- CPU optimization like you wouldn't believe
+- intense CPU optimization and spike fixes needed
 - Distortion module
 - Wavetables
 - Voice optimization
