@@ -12,6 +12,15 @@ What began as a Windows VST3 port grew into a substantially expanded instrument,
 
 <img width="961" height="571" alt="Xsynth 2000 interface" src="https://github.com/user-attachments/assets/4192c0de-cb8d-4bc5-a651-5c3a54980b0e" />
 
+## To-Do / Being done
+
+- CPU optimization like you wouldn't believe
+- Distortion module
+- Wavetables
+- Voice optimization
+- Unison width
+- Et cetera
+
 ## Instrument
 
 Xsynth 2000 has two oscillators, each with **CLASSIC** and **CLEAN** rendering.
