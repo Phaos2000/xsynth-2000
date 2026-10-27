@@ -16,10 +16,24 @@ What began as a Windows VST3 port grew into a substantially expanded instrument,
 
 ## To-Do / Being done
 
-- Further real-host CPU validation and targeted optimization
-- Continued factory wavetable listening and curation
-- Voice optimization
-- Et cetera
+Completed in the current development source on `main`:
+
+- [x] Distortion module: ten algorithms, PRE / POST placement and extended Drive range.
+- [x] Factory wavetable bank and folders: 66 tables, including 30 original additions, chord/scale voicings and dedicated SFX.
+- [x] USER waveform slots and native-patch embedding.
+- [x] Stereo Unison width and selectable voice budgets up to 64 members.
+- [x] Combined VCO Shape / Position modulation destinations.
+- [x] EG2 tempo sync and dual-filter routing.
+- [x] Targeted fix for the supplied Wave-modulation CPU spike: about 57% less processing in the paired different-note replay, with identical audio.
+- [x] Updated interface screenshot and development validation notes.
+
+Still open:
+
+- [ ] Confirm the CPU improvement in Renoise at a 256-sample buffer while playing different notes.
+- [ ] Complete manual listening and level/variety review of the revised factory bank, especially its five harmony voicings.
+- [ ] Continue targeted voice/CPU optimization where real-host testing identifies remaining hotspots.
+
+Completed source work is separate from listening acceptance and a new packaged release. See [current development validation](expansion/docs/CURRENT-DEVELOPMENT.md) for measured scope.
 
 ## Instrument
 
