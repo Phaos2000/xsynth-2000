@@ -1,6 +1,6 @@
 # Current development checkpoint — 2026-10-27
 
-Main contains the current development instrument. Published v0.1.1 packages and tags are unchanged.
+The v0.1.2 release packages the current instrument. Historical v0.1.1 packages and tags are unchanged.
 
 - 66 factory tables: the original 36 plus 30 original procedural additions, organized in folders. The additions comprise 25 musical tables and five SFX, including three distinct digital noise types.
 - Five stable harmony voicings: MAJOR TRIAD, MINOR TRIAD, OPEN SUS4, MAJOR PENTA and MINOR PENTA. Position varies voice and octave colour within a fixed pitch collection. PACKET RELAY is retained; SILK CHIRP is removed.
@@ -14,7 +14,7 @@ The supplied numeric patch fixture exercises eight-way unison and EG2-to-Wave mo
 
 The comparison against the previous listening build produced 6,912,000 bit-exact stereo values across four timelines and 64/128/256-sample blocks. A separate same-semantics unoptimized oracle produced another 6,912,000 exact values. The frozen native oracle covers 702 matrix traces plus the patch, with 1,725,696 exact left samples and matching right output. This is offline measurement on the development machine; live Renoise CPU and manual listening remain separate acceptance gates.
 
-The two new self-contained regression suites are included in the portable public build. The broader local development qualification and final build results are recorded below after completion.
+The two new self-contained regression suites are included in the portable public build. The broader local development qualification and final build results are recorded below.
 
 The README image is captured from this source's native editor renderer using STEEL, MAJOR TRIAD and MAJOR PENTA. No commercial reference audio, archives or extracted waveform coefficients are included.
 
@@ -28,3 +28,7 @@ The README image is captured from this source's native editor renderer using STE
 - README screenshot rendered from the current native editor and visually checked.
 
 The public portable suite and the broader private qualification are distinct. Neither is a live-host CPU or musical acceptance certificate.
+
+## v0.1.2 package qualification
+
+The release changes the version identity to 0.1.2 and refreshes the documentation and screenshot. The versioned plugin passed the bundled SDK validator (51 checks, zero failures) and produced 6,912,000 bit-exact stereo values against the qualified final listening build using the supplied patch. The 74-suite engine qualification above is inherited from that unchanged synthesis implementation; it was not rerun for a version-label change. Both the plugin metadata and the new screenshot identify 0.1.2. Release packages include matching tagged source and SHA-256 checksums.

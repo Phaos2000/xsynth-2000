@@ -4,7 +4,7 @@
 
 **Windows x64 VST3 · Developed by Phaos**
 
-[Website](https://phaos.neocities.org/) · [Email](mailto:phaos2000@pm.me) · [Latest release](https://github.com/Phaos2000/xsynth-2000/releases/tag/v0.1.1)
+[Website](https://phaos.neocities.org/) · [Email](mailto:phaos2000@pm.me) · [Latest release](https://github.com/Phaos2000/xsynth-2000/releases/tag/v0.1.2)
 
 Xsynth 2000 is a digital synthesizer developed from Steve J. Brookes' **Xsynth 1.0.2 (1999)**.
 
@@ -12,7 +12,7 @@ What began as a Windows VST3 port grew into a substantially expanded instrument,
 
 ![Current development interface, STEEL theme](expansion/assets/xsynth-2000-current.png)
 
-*Current development source on main; the published v0.1.1 release remains unchanged.*
+*Xsynth 2000 v0.1.2, STEEL theme. Download the Windows plugin from the latest release.*
 
 ## To-Do / Being done
 
@@ -32,7 +32,7 @@ Still open:
 - [ ] Continue targeted voice/CPU optimization where real-host testing identifies remaining hotspots.
 - [ ] Maybe some more filter types...
 
-Completed source work is separate from listening acceptance and a new packaged release. See [current development validation](expansion/docs/CURRENT-DEVELOPMENT.md) for measured scope.
+The v0.1.2 package includes the completed work above; real-host and listening acceptance remain open as listed. See [current development validation](expansion/docs/CURRENT-DEVELOPMENT.md) for measured scope.
 
 ## Instrument
 
@@ -93,7 +93,7 @@ Xsynth 2000 retains Steve Brookes' original work as its historical and code foun
 | Filter | Low-pass | LP, HP, BP and NOTCH; 12/24 dB; keytracking |
 | LFO | 1 LFO | 4 independent LFOs with tempo sync |
 | Envelopes | 2 envelope generators | Expanded envelope system, including looping EG2 |
-| Modulation | Fixed routing; MIDI modulation to filter cutoff | 12 routes, 14 sources and 42 destinations |
+| Modulation | Fixed routing; MIDI modulation to filter cutoff | 12 routes, 14 sources and 44 visible destinations |
 | Voice controls | Mono only | Poly/mono, glide, legato behavior, master tuning and Unison |
 | Presets | Original patch format | Historical presets, native patches, Xsynth and Xsynth-DSSI import |
 | GUI | X11 control panel | Resizable VST3 interface with six themes |

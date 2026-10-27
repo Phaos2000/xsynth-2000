@@ -1,3 +1,24 @@
+# Xsynth 2000 0.1.2
+
+- Added the 66-table factory ROM and waveform folders, including 30 original
+  procedural additions, five stable harmony voicings and dedicated SFX with
+  three digital noise characters. PACKET RELAY stays; SILK CHIRP is removed.
+- Added USER waveform slots with native-patch embedding and wavetable reading
+  modes. New additions are leveled offline; no runtime auto-gain is applied.
+- Combined each VCO's Shape / Position modulation destination according to
+  oscillator source, retaining saved destination identities.
+- Fixed duplicated unison Wave-modulation control work in the supplied CPU
+  patch. The paired 48 kHz / 256-sample different-note replay used about 57%
+  less processing with bit-exact audio and unchanged synthesis settings.
+- Includes stereo Unison width, up-to-64-member voice budgets, EG2 tempo sync,
+  dual-filter routing and ten distortion algorithms with extended Drive.
+- Updated the interface screenshot, development checklist and validation notes.
+
+Offline validation does not close the pending manual harmony listening or
+live Renoise CPU checks. See expansion/docs/CURRENT-DEVELOPMENT.md.
+
+---
+
 # Xsynth 2000 0.1.1
 
 - Fixed LFO Wave mouse-wheel traversal: all eight menu shapes, including S&H
