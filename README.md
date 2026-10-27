@@ -52,7 +52,7 @@ Xsynth 2000 has two oscillators, each with **CLASSIC**, **CLEAN** and **RASTER**
 - **Four complete independent LFOs**
 - Tempo-synchronized LFO operation
 - **12-slot modulation matrix**
-- **14 modulation sources**
+- **13 active modulation sources**, plus OFF
 - **44 visible modulation destinations**, including combined Shape / Position per VCO
 - Polyphonic and monophonic voice modes
 - Selectable **1 / 2 / 4 / 8 / 16 / 32 / 64 physical-voice budgets**
@@ -87,16 +87,23 @@ Xsynth 2000 retains Steve Brookes' original work as its historical and code foun
 | Area | Xsynth 1.0.2 (1999) | Xsynth 2000 |
 | --- | --- | --- |
 | Platform | Linux / OSS / X11 standalone | Windows x64 VST3 |
-| Voice architecture | Monophonic, highest-note priority | Polyphonic + monophonic; fixed 32-voice pool |
-| Oscillators | 2 oscillators, pitch, balance and sync | 2 oscillators, extended pitch, CLASSIC/CLEAN rendering, FM, PM and sync |
+| Voice architecture | Monophonic, highest-note priority | Polyphonic and monophonic modes; selectable voice budgets up to 64, shared with Unison |
+| Oscillators | 2 oscillators, pitch, balance and sync | 2 oscillators with WAVE / ROM / USER sources, −24 to +24 semitone tuning, FM, PM and hard sync |
+| Oscillator rendering | Original direct digital rendering | Independent CLASSIC / CLEAN / RASTER engines; CLASSIC retains the original digital character |
 | Oscillator mixing | Balance | BAL, SUM, RING, AM, XOR and DIFF |
-| Filter | Low-pass | LP, HP, BP and NOTCH; 12/24 dB; keytracking |
-| LFO | 1 LFO | 4 independent LFOs with tempo sync |
-| Envelopes | 2 envelope generators | Expanded envelope system, including looping EG2 |
-| Modulation | Fixed routing; MIDI modulation to filter cutoff | 12 routes, 14 sources and 44 visible destinations |
-| Voice controls | Mono only | Poly/mono, glide, legato behavior, master tuning and Unison |
+| Factory wavetables | No wavetable bank | 66 tables in folders, with 16 frames each; includes five harmony voicings and dedicated SFX with three digital noise characters |
+| Wavetable motion | No wavetable Position control | HOLD / LINEAR / BAND reading; STEP / MORPH Position, with modulation of Position |
+| User waveforms | No USER wavetable slots | 16 USER slots, waveform import and programmer; waveform data embedded in native patches |
+| Filter modules | One low-pass filter | Two independent filter modules, A and B; each has LP / HP / BP / NOTCH, 12/24 dB slopes, resonance and keytracking |
+| Filter routing | One filter path | A only, B only, A→B, B→A or A+B parallel routing |
+| Distortion | No dedicated distortion module | Ten algorithms, PRE / POST placement, Dry/Wet mix and 0–200% Drive |
+| LFOs | 1 LFO | 4 independent LFOs; tempo sync, retrigger/phase options and random waveforms |
+| Envelopes | 2 envelope generators | 2 expanded envelopes with curve and velocity controls; EG2 looping, tempo sync and FIT / LIMIT modes |
+| Modulation | Fixed routing; MIDI modulation to filter cutoff | 12 routes, 13 active sources plus OFF, and 44 visible destinations; combined Shape / Position per VCO |
+| Unison and stereo | No Unison section | OFF / 2 / 4 / 8-way Unison, detune, stereo width and dynamic group normalization |
+| Voice controls | Mono with portamento | Poly/mono, retrigger/legato modes, selectable glide behavior, pitch-bend range, master tuning, sustain and sostenuto |
 | Presets | Original patch format | Historical presets, native patches, Xsynth and Xsynth-DSSI import |
-| GUI | X11 control panel | Resizable VST3 interface with six themes |
+| GUI | X11 control panel | Resizable VST3 interface with six themes, waveform folders, waveform programmer and remembered size |
 
 ## Historical patch compatibility
 
