@@ -25,13 +25,12 @@ Completed in the current development source on `main`:
 - [x] Combined VCO Shape / Position modulation destinations.
 - [x] EG2 tempo sync and dual-filter routing.
 - [x] Targeted fix for the supplied Wave-modulation CPU spike: about 57% less processing in the paired different-note replay, with identical audio.
-- [x] Updated interface screenshot and development validation notes.
 
 Still open:
 
-- [ ] Confirm the CPU improvement in Renoise at a 256-sample buffer while playing different notes.
 - [ ] Complete manual listening and level/variety review of the revised factory bank, especially its five harmony voicings.
 - [ ] Continue targeted voice/CPU optimization where real-host testing identifies remaining hotspots.
+- [ ] Maybe some more filter types...
 
 Completed source work is separate from listening acceptance and a new packaged release. See [current development validation](expansion/docs/CURRENT-DEVELOPMENT.md) for measured scope.
 
