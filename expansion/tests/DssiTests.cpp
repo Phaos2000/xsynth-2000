@@ -203,7 +203,7 @@ template<class Synth=xs::Engine> std::vector<float> render(const xs::State &stat
     if (i == rate * 5 / 4)
       synth.allOff();
     audio[i] = synth.next();
-    check(std::isfinite(audio[i]) && std::abs(audio[i]) <= 1, "Invalid imported audio");
+    check(std::isfinite(audio[i]), "Invalid imported audio");
   }
   return audio;
 }

@@ -10,6 +10,7 @@
 #include "DigitalOscillator.h"
 #include "Transitions.h"
 #include "HighCutFilter.h"
+#include "DocumentAssets.h"
 
 namespace xs {
 
@@ -134,28 +135,20 @@ inline std::vector<uint8_t> exportPatch(const State &s) {
   b.push_back(s[28] >= .5);
   return b;
 }
-constexpr size_t StateBytes = 8 + Count * 8;
+// Normal saves retain the exact201-value legacy representation.
+constexpr size_t StateBytes = 48 + PreDriveCount * 8;
+constexpr size_t ExtendedStateBytes = 48 + Count * 8;
 // V2 changes VCO pitch normalization; V3 migrates the modulation destination enumeration.
 // V1 ratio=2^(2*n); V2 ratio=.25*2^(4*n). Old n becomes .5+.5*n.
 inline int stateValueCount(const uint8_t* header) {
   if(!std::memcmp(header,"XSV3\1\0\0\0",8))return LegacyCount;
-  if(!std::memcmp(header,"XSED\6\0\0\0",8))return Count;
+  if(!std::memcmp(header,"XSED\6\0\0\0",8))return PreWavetableCount;
   if(!std::memcmp(header,"XSED\5\0\0\0",8))return PreFourLfoCount;
   if(!std::memcmp(header,"XSED\4\0\0\0",8))return PreUnisonCount;
   if(!std::memcmp(header,"XSED\1\0\0\0",8)||!std::memcmp(header,"XSED\2\0\0\0",8)||!std::memcmp(header,"XSED\3\0\0\0",8))return PreviousCount;
   return 0;
 }
-inline std::vector<uint8_t> encode(const State &s) {
-  std::vector<uint8_t> b = {'X', 'S', 'E', 'D', 6, 0, 0, 0};
-  for (auto v : s) {
-    uint64_t n;
-    std::memcpy(&n, &v, 8);
-    for (int j = 0; j < 8; ++j)
-      b.push_back(uint8_t(n >> (8 * j)));
-  }
-  return b;
-}
-inline bool decode(const uint8_t *b, size_t size, State &out) {
+inline bool decodeHistorical(const uint8_t *b, size_t size, State &out) {
   if(size<8)return false;
   int count=stateValueCount(b);
   if(!count || size!=8+size_t(count)*8)return false;
@@ -180,6 +173,8 @@ inline bool decode(const uint8_t *b, size_t size, State &out) {
   return true;
 }
 
+#include "DocumentState.h"
+
 class LegacyEngine {
   double sr = 44100;
   struct Tables {
@@ -193,18 +188,20 @@ class LegacyEngine {
   inline static const Tables tables{};
   std::array<bool, 128> notes{};
   float highFilter[4]{},lastFilterHz=0;
-  float pos[3]{}, eg[2]{}, d[4]{}, pitch = 0, previousPitch = 0, baseFilter = 0;
+  float filterDamping=-1,filterCalibration=1,filterStrength=0,filterSignedDamping=2;int calibratedStages=0;
+  float pos[3]{}, eg[2]{}, pitch = 0, previousPitch = 0, baseFilter = 0;
   int phase[2]{}, previousNote = 0, tick = 0;
   bool active = false, sync[3]{};
   uint32_t dirtyMask = (1u<<24)-1;
   float p[24]{}, rates[2][3]{}, glide = 1,lastFilterCoefficient=0;
   SignalBlend<6> waveform[2];SignalBlend<2> engines[2];
+  float previousPulseDuty[2]{-1,-1};
   float evaluatedWave(float phase,int kind,float pw) const {
     float w=phase*100;int i=std::min(99,int(w));float f=w-i;
     switch(kind){case 0:return tables.sine[i]+(tables.sine[i+1]-tables.sine[i])*f;
       case 1:return tables.tri[i]+(tables.tri[i+1]-tables.tri[i])*f;
       case 2:return 2*phase-1;case 3:return 1-2*phase;
-      case 4:return phase<.5f?1.f:-1.f;default:return phase<pw?1.f:-1.f;}
+      case 4:return phase<.5f?1.f:-1.f;default:return phase<oscillator::pulseDuty(pw)?1.f:-1.f;}
   }
   float wave(int osc, float frequency, float dt, int kind, float pw) {
     pos[osc] += dt * frequency;
@@ -212,19 +209,22 @@ class LegacyEngine {
       pos[osc] -= std::floor(pos[osc]);
       sync[osc] = true;
     }
+    float previousDuty=-1,duty=oscillator::pulseDuty(pw);
+    if(osc<2){previousDuty=previousPulseDuty[osc];previousPulseDuty[osc]=kind==5?duty:-1;}
+    auto correction=[&](float value,int wave){return wave==5?oscillator::movingPulse(value,pos[osc],dt*frequency,duty,previousDuty):value;};
     float p = pos[osc], w = p * 100;
     int i = std::min(99, int(w));
     float f = w - i;
     if(osc<2 && (waveform[osc].remaining || engines[osc].remaining)) {
       float sample=0;
       for(int k=0;k<6;++k)if(waveform[osc].weights[k]!=0) {
-        float raw=evaluatedWave(p,k,pw),clean=oscillator::clean(p,dt*frequency,k,pw,raw);
+        float raw=evaluatedWave(p,k,pw),clean=correction(oscillator::clean(p,dt*frequency,k,pw,raw),k);
         sample+=waveform[osc].weights[k]*(engines[osc].weights[0]*raw+engines[osc].weights[1]*clean);
       }
       return sample;
     }
     if(osc<2 && state[Engine1+osc]>=.5)
-      return oscillator::clean(p,dt*frequency,kind,pw,evaluatedWave(p,kind,pw));
+      return correction(oscillator::clean(p,dt*frequency,kind,pw,evaluatedWave(p,kind,pw)),kind);
 
     switch (kind) {
     case 0:
@@ -238,22 +238,24 @@ class LegacyEngine {
     case 4:
       return p < .5f ? 1.f : -1.f;
     default:
-      return p < pw ? 1.f : -1.f;
+      return p < oscillator::pulseDuty(pw) ? 1.f : -1.f;
     }
   }
 
 protected:
-  struct Continuity {float oscillator[2],filter[4],highFilter[4],env[2],hz,lfo,coefficient,highHz;int stage[2];bool active;};
+  struct Continuity {float oscillator[2],highFilter[4],env[2],pulseDuty[2],hz,lfo,coefficient,highHz,damping,strength;int stage[2];bool active;};
   Continuity continuity() const {
-    Continuity c{};std::copy_n(pos,2,c.oscillator);std::copy_n(d,4,c.filter);
+    Continuity c{};std::copy_n(pos,2,c.oscillator);
     std::copy_n(eg,2,c.env);std::copy_n(phase,2,c.stage);
     std::copy_n(highFilter,4,c.highFilter);c.highHz=lastFilterHz;
-    c.hz=pitch;c.lfo=pos[2];c.coefficient=lastFilterCoefficient;c.active=active;return c;
+    std::copy_n(previousPulseDuty,2,c.pulseDuty);c.hz=pitch;c.lfo=pos[2];c.coefficient=lastFilterCoefficient;c.damping=filterSignedDamping;c.strength=filterStrength;c.active=active;return c;
   }
 
 public:
   State state = defaults();
+  float lastOutputBeforeClamp=0; // Diagnostic tap; never changes the signal path.
   LegacyEngine() = default;
+  static const float* sineTable(){return tables.sine.data();}
   static float sineSample(float phase) {
     float x=phase*100;int i=std::min(99,int(x));
     return tables.sine[i]+(tables.sine[i+1]-tables.sine[i])*(x-i);
@@ -261,10 +263,11 @@ public:
   void reset(double rate) {
     sr = rate;
     dirtyMask = (1u<<24)-1;
+    previousPulseDuty[0]=previousPulseDuty[1]=-1;
     notes.fill(false);
     std::fill_n(pos, 3, 0.f);
     std::fill_n(eg, 2, 0.f);
-    std::fill_n(d, 4, 0.f);std::fill_n(highFilter,4,0.f);
+    std::fill_n(highFilter,4,0.f);
     std::fill_n(phase, 2, 0);
     std::fill_n(sync, 3, false);
     pitch = previousPitch = baseFilter = 0;
@@ -297,6 +300,7 @@ public:
   }
   int heldNote() const { return previousNote; }
   float next() {
+    lastOutputBeforeClamp=0;
     if (dirtyMask) {
       for (int i=0;i<24;++i)if(dirtyMask&(1u<<i))p[i]=float(physical(i,state[i]));
       if(dirtyMask&(1u<<8))glide=sr==44100?p[8]:float(1-std::pow(1.-p[8],44100/sr));
@@ -331,7 +335,7 @@ public:
           phase[0] = phase[1] = 2;
         else {
           active = false;
-          std::fill_n(d, 4, 0.f);std::fill_n(highFilter,4,0.f);
+          std::fill_n(highFilter,4,0.f);
         }
       }
     }
@@ -367,29 +371,23 @@ public:
                          baseFilter * p[20] * eg[1]) *
                             (1 + lfo * p[6]));
     float filterHz=cutoff*float(sr)/(2*float(Pi));lastFilterHz=filterHz;
-    cutoff=std::min(.825f,cutoff);
-    lastFilterCoefficient=cutoff;
-    d[1] += cutoff * d[0];
-    float high = input - d[1] - p[22] * d[0];
-    d[0] += cutoff * high;
-    float out = d[1];
-    if (state[28] >= .5) {
-      d[3] += cutoff * d[2];
-      high = out - d[3] - p[22] * d[2];
-      d[2] += cutoff * high;
-      out = d[3];
-    }
-    float highInput=input,gHigh=highcut::coefficient(filterHz,float(sr)),outputs[4]{};
-    for(int stage=0;stage<(state[28]>=.5?2:1);++stage){highcut::stage(highInput,gHigh,p[22],highFilter+2*stage,outputs);highInput=outputs[0];}
-    float blend=highcut::weight(filterHz,float(sr));out=out*(1-blend)+highInput*blend;
+    int stages=state[28]>=.5?2:1;
+    if(filterDamping!=p[22]||calibratedStages!=stages){filterDamping=p[22];calibratedStages=stages;filterCalibration=highcut::productionRatio(p[22],0,stages);filterStrength=highcut::resonanceStrength(p[22]);filterSignedDamping=highcut::resonanceDamping(p[22]);}
+    float highInput=input,gHigh=highcut::coefficient(filterHz,float(sr))/filterCalibration,outputs[4]{};
+    lastFilterCoefficient=gHigh;
+    double alpha=filterStrength>0?highcut::radialAlpha(gHigh,filterStrength):0;
+    for(int stage=0;stage<stages;++stage){float damping=stage+1<stages?std::max(.005f,filterSignedDamping):filterSignedDamping;
+      highcut::stage(highInput,gHigh,damping,highFilter+2*stage,outputs);if(alpha>0)highcut::radialState(highFilter+2*stage,alpha);highInput=outputs[0];}
+    float out=highInput;
     float w = p[23] * 100;
     int k = std::min(99, int(w));
     float gain = tables.vol[k] + (tables.vol[k + 1] - tables.vol[k]) * (w - k);
     out *= eg[0] * gain;
     if (!std::isfinite(out)) {
-      std::fill_n(d, 4, 0.f);std::fill_n(highFilter,4,0.f);
+      std::fill_n(highFilter,4,0.f);
       return 0;
     }
+    lastOutputBeforeClamp=out;
     return state[29] >= .5 ? std::clamp(out, -1.f, 1.f) : 0.f;
   }
 };

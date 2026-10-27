@@ -1,6 +1,7 @@
 // GPL-2.0-or-later. Theme rendering, UI-only persistence and input isolation.
 #include "Editor.h"
 #include "Layout.h"
+#include "UiGeometry.h"
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -43,7 +44,7 @@ int main(){
   std::vector<std::vector<uint32_t>> images{steel};
   for(unsigned n=1;n<=xs::theme::Count;++n){
    click(60,24); // Logo opens About; theme only exists in this modal.
-   click(480,492);
+   click(xs::ui::ThemeButton.x+xs::ui::ThemeButton.w/2,xs::ui::ThemeButton.y+xs::ui::ThemeButton.h/2);
    auto expected=xs::theme::Id(n%xs::theme::Count);
    check(a.currentTheme()==expected,"About selector did not select next theme");
    check(xs::theme::load(sandbox.key.c_str())==expected,"Theme preference was not persisted");

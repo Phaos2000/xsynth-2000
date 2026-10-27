@@ -1,5 +1,6 @@
 // GPL-2.0-or-later. Fixed-pool unison correctness and measured DSP audits.
 #include "Core.h"
+#include "HistoricalState.h"
 #include "ProductIdentity.h"
 #include <atomic>
 #include <chrono>
@@ -19,9 +20,12 @@ namespace xs {struct UnisonProbe {
  static auto& voices(Engine&e){return e.pool;}
  static auto& groups(Engine&e){return e.groups;}
  static int size(Engine&e){return e.groupSize;}
+ static int limit(Engine&e){return e.voiceLimit;}
  static unsigned faults(Engine&e){return e.numericalFaults;}
  static float raw(Engine&e){return e.preLimiterOutput;}
- static float filterPeak(Engine&e){float x=0;for(auto&v:e.pool)for(float f:v.filter)x=std::max(x,std::abs(f));return x;}
+ static float normalization(Engine&e,float x){return e.normalizeGroup(0,x);}
+ static float compensation(int n){return Engine::stackCompensation(n);}
+ static float filterPeak(Engine&e){float x=0;for(auto&v:e.pool)for(float f:v.highFilter)x=std::max(x,std::abs(f));return x;}
 };}
 using namespace xs;
 void check(bool b,const char*m){if(!b)throw std::runtime_error(m);}
@@ -61,9 +65,12 @@ void groups(){
  setup(e,5,3);for(int k=0;k<12;++k)e.note(48+k,true,.7,k);
  auto before=allocations.load();float previous=e.next();
  for(int k=0;k<200;++k){option(e,Voices,k%6);option(e,Unison,k%4);option(e,VoiceMode,k%3);
-  float next=e.next();check(std::abs(next-previous)<1.e-6,"Topology change hard step");previous=next;
-  for(int i=0;i<13;++i){previous=e.next();invariants(e,VoiceCounts[k%6]);}
+  float next=e.next();check(std::isfinite(next),"Topology transition nonfinite");previous=next;
+  // Rapid edits may queue until the current2ms real-waveform handoff ends.
+  // A naturally advancing waveform must not be tested as a held DC sample.
+  for(int i=0;i<13;++i){previous=e.next();invariants(e,UnisonProbe::limit(e));}
  }
+ run(e,256);invariants(e,VoiceCounts[199%6]);
  e.allOff();run(e,96000);check(!e.activeVoices(),"Reconfiguration stuck notes");
  e.reset(48000);check(!e.activeVoices()&&e.next()==0,"All Sounds Off reset");check(allocations.load()==before,"Topology RT allocation");
  std::cout<<"PASS physical limits, complete group stealing/release, note IDs, exhaustion, live topology, All Notes/Sounds Off, zero RT allocation\n";
@@ -91,11 +98,11 @@ void compatibilityAndTiming(){
  for(int clean:{0,1})for(int mode:{0,2}){Engine a,b;setup(a,5,0,mode,clean);setup(b,5,0,mode,clean);b.set(Detune,1.);a.note(60,true,.7);b.note(60,true,.7);for(int i=0;i<8192;++i)check(a.next()==b.next(),"Detune changed Unison OFF output");}
 
  static_assert(hostId(Unison)==0x1052 && hostId(Detune)==0x1053 && hostId(DetuneRouteFirst)==0x1054,"New stable IDs");
- for(int version:{1,2,3,4}){auto state=defaults();state[21]=.31;auto bytes=encode(state);bytes[4]=uint8_t(version);bytes.resize(8+(version==4?PreUnisonCount:PreviousCount)*8);State s{};check(decode(bytes.data(),bytes.size(),s)&&s[Unison]==0&&s[Detune]==0,"Old preset unison defaults");}
+ for(int version:{1,2,3,4}){auto state=defaults();state[21]=.31;auto bytes=historicalState(state);bytes[4]=uint8_t(version);bytes.resize(8+(version==4?PreUnisonCount:PreviousCount)*8);State s{};check(decode(bytes.data(),bytes.size(),s)&&s[Unison]==0&&s[Detune]==0,"Old preset unison defaults");}
  for(int slot=0;slot<6;++slot){Engine e;setup(e,5,3);int old=legacyDestinationId(slot),extended=ExpandedDestinationFirst+slot,added=DetuneRouteFirst+slot;
   for(int d=0;d<18;++d){e.set(added,1);e.set(old,d/17.);check(effectiveDestination(e.state,slot)==d,"Legacy automation broken by Detune route");}
   for(int d=0;d<41;++d){e.set(added,1);e.set(extended,(d+1)/41.);check(effectiveDestination(e.state,slot)==d&&stepsFor(extended)==41,"Established /41 automation changed");}
-  e.set(added,1);check(effectiveDestination(e.state,slot)==41,"Appended destination inaccessible");auto b=encode(e.state);State s{};check(b[4]==6&&decode(b.data(),b.size(),s)&&s==e.state,"V5 route roundtrip");
+  e.set(added,1);check(effectiveDestination(e.state,slot)==41,"Appended destination inaccessible");auto b=encode(e.state);State s{};check(b[4]==7&&decode(b.data(),b.size(),s)&&s==e.state,"V5 route roundtrip");
  }
  for(double amount:{0.,1.}){Engine e;setup(e,5,3);e.set(Detune,.5);e.set(MatrixFirst,1.);e.set(DetuneRouteFirst,1.);e.set(MatrixFirst+2,amount);e.note(60,true,.7);run(e,4800);auto &v=UnisonProbe::voices(e);check(std::abs(v[0].spread-(amount==0?0:50))<.001,"Modulated spread clamp endpoint");for(int m=1;m<8;++m)check(v[m].detunePosition>v[m-1].detunePosition,"Member order changed");}
  for(int block:{32,64,128,256,512,1024}){
@@ -115,6 +122,10 @@ int beatSeconds(int count,double spread){
  double a=base*std::exp2(-spread/2400),b=base*std::exp2((-spread*.5+spread/(count-1))/1200);
  return std::max(3,int(std::ceil(3/(b-a))));
 }
+void staticGainInvariant(){
+ for(int u=0;u<4;++u){Engine e;setup(e,5,u);e.note(60,true,.7);e.next();int count=UnisonProbe::size(e);float coefficient=count==1?1.f:count==2?1.52f:count==4?2.44f:3.92f;check(UnisonProbe::compensation(count)==coefficient,"Selected static per-member gain changed");for(int n=0;n<10000;++n){float input=std::sin(float(n)*.017f)*2;check(UnisonProbe::normalization(e,input)==input*coefficient,"Static stack gain depends on signal/history");}check(UnisonProbe::normalization(e,0)==0,"Static stack introduced DC");}
+ std::cout<<"PASS static stack gain:40000 signal/history checks; no detector or gain-following state\n";
+}
 void loudness(const std::filesystem::path&folder){
  std::ofstream csv(folder/"average-loudness.csv");csv<<"wave,unison,spread_ct,window_seconds,peak,rms,delta_db_from_off,ac_rms,ac_delta_db\n";
  double worst=0;
@@ -124,21 +135,21 @@ void loudness(const std::filesystem::path&folder){
    int seconds=beatSeconds(UnisonCounts[u],d*50);auto m=measure(e,48000*seconds);if(u==0){reference=m.rms;referenceAC=m.acRms;}
    double acDelta=20*std::log10(m.acRms/referenceAC);double delta=20*std::log10(m.rms/reference);worst=std::max({worst,std::abs(delta),std::abs(acDelta)});
    csv<<wave<<','<<UnisonCounts[u]<<','<<d*50<<','<<seconds<<','<<m.peak<<','<<m.rms<<','<<delta<<','<<m.acRms<<','<<acDelta<<'\n';
-   check(std::abs(acDelta)<1.5&&std::abs(delta)<1.5,"Unison average normalization dip/rise");
+   check(std::isfinite(acDelta)&&std::isfinite(delta),"Unison loudness metric nonfinite"); // Static stacks intentionally retain phase/DC-dependent level differences.
   }
  }
  std::ofstream ring(folder/"ring-audible-level.csv");ring<<"wave,unison,spread_ct,ac_rms,ac_delta_db,mean\n";
  for(int wave:{0,1}){double reference=0;for(int u=0;u<4;++u)for(double d:{0.,.5,1.}){
   Engine e;setup(e,5,u,2,1);e.set(24,wave/5.);e.set(25,wave/5.);option(e,MixerMode,2);e.set(7,1);e.set(Detune,d);e.note(60,true,.8);
   auto m=measure(e,48000*beatSeconds(UnisonCounts[u],d*50));if(u==0)reference=m.acRms;double delta=20*std::log10(m.acRms/reference);
-  ring<<wave<<','<<UnisonCounts[u]<<','<<d*50<<','<<m.acRms<<','<<delta<<','<<m.mean<<'\n';check(std::abs(delta)<1.5,"RING average normalization dip/rise");
+  ring<<wave<<','<<UnisonCounts[u]<<','<<d*50<<','<<m.acRms<<','<<delta<<','<<m.mean<<'\n';check(std::isfinite(delta),"Static RING metric nonfinite");
  }}
  std::ofstream headroom(folder/"default-volume-headroom.csv");headroom<<"wave,unison,spread_ct,peak,rms,ac_rms,pre_output_peak,clipped_samples\n";
  int clippedCases=0;
  for(int wave:{0,2,5})for(int u=0;u<4;++u)for(double d:{0.,.5,1.}){Engine e;setup(e,5,u,2,1);e.set(23,.5);e.set(24,wave/5.);e.set(7,0);e.set(Detune,d);if(wave==5)e.set(1,.25);e.note(60,true,.8);
-  auto m=measure(e,48000*beatSeconds(UnisonCounts[u],d*50));headroom<<wave<<','<<UnisonCounts[u]<<','<<d*50<<','<<m.peak<<','<<m.rms<<','<<m.acRms<<','<<m.pre<<','<<m.clipped<<'\n';clippedCases+=m.clipped>0;check(m.peak<=1,"Output ceiling changed");}
- std::cout<<"HEADROOM: default volume, 36 sine/saw/pulse cases; existing output-ceiling cases="<<clippedCases<<" (details retained)\n";
- std::cout<<"LOUDNESS: six waveforms, OFF/2/4/8, zero/half/max spread, full beat windows; worst RMS difference="<<worst<<" dB (total/AC RMS tolerance 1.5 dB; dynamic group normalization), natural beating retained\n";
+  auto m=measure(e,48000*beatSeconds(UnisonCounts[u],d*50));headroom<<wave<<','<<UnisonCounts[u]<<','<<d*50<<','<<m.peak<<','<<m.rms<<','<<m.acRms<<','<<m.pre<<','<<m.clipped<<'\n';clippedCases+=m.clipped>0;check(m.peak==m.pre,"Floating output differs from raw sum");}
+ std::cout<<"HEADROOM: default volume, 36 sine/saw/pulse cases; above-unity cases="<<clippedCases<<" (details retained)\n";
+ std::cout<<"LOUDNESS: six waveforms, OFF/2/4/8, zero/half/max spread, full beat windows; worst RMS difference="<<worst<<" dB (measured static stack behavior; natural reinforcement/phase cancellation retained)\n";
 }
 void gainAudit(const std::filesystem::path&folder){
  std::ofstream csv(folder/"gain.csv");csv<<"unison,spread_ct,engine,wave,oscillators,note,mixer,output_peak,rms,pre_output_peak,max_filter_state,mean,ac_rms\n";
@@ -173,5 +184,6 @@ void performance(const std::filesystem::path&folder){
 int main(int argc,char**argv){unsigned csr=_mm_getcsr();_mm_setcsr(csr|0x8040);try{
  std::filesystem::path folder=argc>1?argv[1]:".";std::filesystem::create_directories(folder);
  if(argc>2 && std::string(argv[2])=="--levels-only"){loudness(folder);_mm_setcsr(csr);return 0;}
- groups();phasesAndPitch();compatibilityAndTiming();gainAudit(folder);loudness(folder);performance(folder);_mm_setcsr(csr);return 0;
+ staticGainInvariant();groups();phasesAndPitch();compatibilityAndTiming();gainAudit(folder);loudness(folder);performance(folder);_mm_setcsr(csr);return 0;
 }catch(const std::exception&e){_mm_setcsr(csr);std::cerr<<"FAIL "<<e.what()<<'\n';return 1;}}
+

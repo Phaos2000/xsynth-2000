@@ -10,41 +10,47 @@ Xsynth 2000 is a digital synthesizer developed from Steve J. Brookes' **Xsynth 1
 
 What began as a Windows VST3 port grew into a substantially expanded instrument, with a larger oscillator and filter architecture, four independent LFOs, a 12-slot modulation matrix, polyphony, Unison, historical patch compatibility and a new retro-style interface.
 
-<img width="961" height="571" alt="Xsynth 2000 interface" src="https://github.com/user-attachments/assets/4192c0de-cb8d-4bc5-a651-5c3a54980b0e" />
+![Current development interface, STEEL theme](expansion/assets/xsynth-2000-current.png)
+
+*Current development source on main; the published v0.1.1 release remains unchanged.*
 
 ## To-Do / Being done
 
-- intense CPU optimization and spike fixes needed
-- Distortion module
-- Wavetables
+- Further real-host CPU validation and targeted optimization
+- Continued factory wavetable listening and curation
 - Voice optimization
-- Unison width
 - Et cetera
 
 ## Instrument
 
-Xsynth 2000 has two oscillators, each with **CLASSIC** and **CLEAN** rendering.
+Xsynth 2000 has two oscillators, each with **CLASSIC**, **CLEAN** and **RASTER** rendering.
 
 **CLASSIC** preserves the direct digital oscillator behavior, including aliasing as part of the sound. **CLEAN** provides an alternate reduced-aliasing implementation without changing oscillator tuning. Xsynth 2000 is a digital synthesizer rather than an attempt to emulate a particular analog instrument.
 
 ### Highlights
 
-- Two oscillators with independent **CLASSIC / CLEAN** rendering
+- Two oscillators with independent **CLASSIC / CLEAN / RASTER** rendering
 - **−24 to +24 semitone** oscillator range
 - FM, PM and hard sync
 - BAL / SUM / RING / AM / XOR / DIFF oscillator mixing
-- LP / HP / BP / NOTCH filters
+- Two VCFs with LP / HP / BP / NOTCH modes, serial/parallel routing and keytracked self-oscillation
 - 12 / 24 dB/oct filter slopes and keytracking
-- Two expanded envelope generators, including looping EG2
+- Two expanded envelope generators, including tempo-synchronized looping EG2
 - **Four complete independent LFOs**
 - Tempo-synchronized LFO operation
 - **12-slot modulation matrix**
 - **14 modulation sources**
-- **42 modulation destinations**
+- **44 visible modulation destinations**, including combined Shape / Position per VCO
 - Polyphonic and monophonic voice modes
-- Fixed **32-physical-voice pool**
+- Selectable **1 / 2 / 4 / 8 / 16 / 32 / 64 physical-voice budgets**
 - Unison OFF / 2 / 4 / 8 with dynamic group normalization
 - Glide, pitch bend and master tuning
+- **66 factory wavetables** in folders, including five chord/scale voicings and dedicated SFX
+- Sixteen wavetable frames, HOLD / LINEAR / BAND reading and STEP / MORPH Position
+- Sixteen USER waveform slots with native-patch embedding
+- Ten distortion algorithms with PRE / POST placement and 0–200% Drive
+- Stereo Unison width
+- Coherent Wave-modulation optimization with independent unison oscillator histories
 - Historical factory preset browser
 - Original Xsynth `.Xpatch` import
 - Xsynth-DSSI format 0/1 bank import
@@ -135,7 +141,7 @@ Theme and GUI-size preferences are stored separately from patches, so changing t
 
 ## Validation
 
-Xsynth 2000 v0.1.1 passed:
+The published v0.1.1 checkpoint passed:
 
 - **24 / 24 regression suites**
 - **Steinberg validator: 47 passed / 0 failed**
@@ -145,6 +151,8 @@ Xsynth 2000 v0.1.1 passed:
 - six-theme and GUI interaction checks
 
 The current release also includes performance optimization of the expanded four-LFO / twelve-route engine. Extreme 96 kHz, 32-voice workloads remain intentionally documented as stress cases rather than being hidden through reduced synthesis quality.
+
+Current main adds the factory wavetable bank, shared Shape / Position routing and an exact-audio Wave-modulation CPU fix. See [current development validation](expansion/docs/CURRENT-DEVELOPMENT.md) for the source checkpoint and measured scope. Manual listening and real-host CPU acceptance remain separate from offline validation.
 
 ## Installation
 

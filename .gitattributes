@@ -9,3 +9,7 @@ expansion/tests/reference-audio/** -text -whitespace
 expansion/tests/dssi/** -text -whitespace
 expansion/tests/pre-*/** -text -whitespace
 expansion/tests/perf-*/** -text -whitespace
+
+expansion/assets/PreparedFactory.inc linguist-generated=true
+expansion/factory/rom/*.bin binary
+expansion/factory/rom/*.xrom binary

@@ -24,7 +24,7 @@ int main() {
   for(int mode:{1,2})for(int direction:{0,1})for(int e1:{0,1})for(int e2:{0,1}) {
     xs::Engine e;fixture(e,true);e.set(xs::Engine1,e1);e.set(xs::Engine2,e2);
     e.set(xs::XMode,mode/2.);e.set(xs::XDirection,direction);e.set(xs::XDepth,.65);e.set(27,1);
-    double energy=0;for(int n=0;n<8192;++n){if(n==0)e.note(84,true);float sample=e.next();check(std::isfinite(sample)&&std::abs(sample)<=1,"Asymmetric XMOD output invalid");energy+=sample*sample;}
+    double energy=0;for(int n=0;n<8192;++n){if(n==0)e.note(84,true);float sample=e.next();check(std::isfinite(sample),"Asymmetric XMOD output invalid");energy+=sample*sample;}
     check(energy>0,"Asymmetric XMOD silent");
   }
   {
@@ -45,9 +45,10 @@ int main() {
     for(int i=0;i<100;++i){float p=i/100.f,raw=kind==1?(p<.25f?4*p:p<.75f?2-4*p:4*p-4):0;
       check(std::isfinite(xs::oscillator::clean(p,increment,kind,.5f,raw)),"CLEAN correction invalid");}
   }
-  for(float phase:{0.f,.1f,.5f,.999f}) {
-    check(xs::oscillator::clean(phase,.1f,5,0,-1)==-1,"Zero pulse width not preserved");
-    check(xs::oscillator::clean(phase,.1f,5,1,1)==1,"Full pulse width not preserved");
+  for(float shape:{0.f,1.f})for(float phase:{0.f,.1f,.5f,.999f}) {
+    float duty=xs::oscillator::pulseDuty(shape),raw=phase<duty?1.f:-1.f;
+    check(duty>0&&duty<1,"Pulse endpoint mapping escaped");
+    check(std::isfinite(xs::oscillator::clean(phase,.1f,5,shape,raw)),"Mapped CLEAN pulse invalid");
   }
   // The clean triangle is evaluated at the modulated phase, not integrated from
   // the unmodulated frequency. Quarter-cycle displacement must move its peak.

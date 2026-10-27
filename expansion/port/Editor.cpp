@@ -10,7 +10,11 @@
 #include "UiGeometry.h"
 #include "ContextRegions.h"
 #include "SelectorKind.h"
+#include "FeatureControls.h"
 #include "SourceMenu.h"
+#include "DestinationMenu.h"
+#include "RomMenu.h"
+#include "WaveProgrammer.h"
 #include <commdlg.h>
 #include <cstdio>
 #include <fstream>
@@ -50,6 +54,7 @@ std::vector<Color> ramp(Color a, Color b, int steps) {
 struct Editor::Impl {
   Editor *owner;
   HWND window{};
+  std::unique_ptr<WaveProgrammer> programmer;
   HDC dc{};
   HBITMAP image{}, old{};
   uint32_t *pixels{};
@@ -58,7 +63,7 @@ struct Editor::Impl {
   ULONG_PTR gdiplus{};
   int drag = -100, startY = 0, startX=0;
   bool draggingAmount=false;
-  int amountAxis=0,pendingMatrixMenu=-1;
+  int amountAxis=0,pendingMatrixMenu=-1,pendingVcoTableMenu=-1;
   int pressedAction = 0;
   int pressedParam=-1,lastPressedParam=-1;
   bool swallowLeftRelease=false;
@@ -70,9 +75,24 @@ struct Editor::Impl {
   std::array<Control,36> routes=matrixControls();
   std::array<Control,std::size(mainControls)> controls=[] {std::array<Control,std::size(mainControls)> a{};std::copy(std::begin(mainControls),std::end(mainControls),a.begin());return a;}();
   int selectedLfo=0,wheelPitchId=-1,wheelPitchRemainder=0;
-  void selectLfo(int index){finishPointer();selectedLfo=index;for(size_t i=0;i<controls.size();++i){controls[i]=mainControls[i];int field=lfoField(controls[i].id);if(field>=0)controls[i].id=lfoParam(index,field);}background.clear();if(window)InvalidateRect(window,nullptr,FALSE);}
+  void refreshControls(){for(size_t i=0;i<controls.size();++i){controls[i]=mainControls[i];int field=lfoField(controls[i].id);if(field>=0)controls[i].id=lfoParam(selectedLfo,field);controls[i].id=features::filterId(controls[i].id,owner->selectedFilter);}}
+  void selectLfo(int index){finishPointer();selectedLfo=index;refreshControls();background.clear();if(window)InvalidateRect(window,nullptr,FALSE);}
+  int filterTab(int x,int y)const{for(int i=0;i<2;++i)if(vcoGrid::contains(vcfTabs::hit(i),x,y))return i;return -1;}
+  void selectFilter(int index){finishPointer();owner->selectedFilter=index;refreshControls();background.clear();if(window)InvalidateRect(window,nullptr,FALSE);}
+  double guiTempo=120,guiRate=48000;
+  void updateClock(){guiTempo=owner->readTempo?owner->readTempo():120;guiRate=owner->readSampleRate?owner->readSampleRate():48000;if(!std::isfinite(guiTempo)||guiTempo<=0)guiTempo=120;if(!std::isfinite(guiRate)||guiRate<=0)guiRate=48000;}
+  bool rateAllowed(const State&s,int division){return discrete(Eg2Sync,s[Eg2Sync])!=3||features::rateValid(s,division,guiTempo,guiRate,owner->lastEg2Cycle);}
+  void featureSelect(const Control&c,int direction,bool wheel){
+    auto s=owner->read();int id=c.id;updateClock();int count=id==Loop2?2:id==Eg2Sync?5:id==Eg2Rate?10:5;
+    int current=id==Loop2?features::cycle(s,owner->lastEg2Cycle):id==Eg2Sync?features::loopMode(s):discrete(id,s[id]);int chosen=wheel?std::clamp(current+direction,0,count-1):(current+direction+count)%count;
+    auto set=[&](int p,double n){owner->begin(p);edit(p,n);owner->end(p);};
+    if(id==Eg2Rate&&!wheel){HMENU menu=CreatePopupMenu();for(int i=0;i<10;++i)AppendMenuA(menu,MF_STRING|(i==current?MF_CHECKED:0)|(rateAllowed(s,i)?0:MF_GRAYED),i+1,eg2::Rates[i]);POINT p{z(c.x),z(c.y+66)};ClientToScreen(window,&p);PopupScope modal(*this);UINT result=TrackPopupMenu(menu,TPM_RETURNCMD|TPM_NONOTIFY,p.x,p.y,0,window,nullptr);DestroyMenu(menu);if(!result)return;chosen=int(result)-1;}
+    if(id==Loop2){owner->lastEg2Cycle=chosen;if(s[Loop2]!=0)set(Loop2,(chosen+1)/2.);else {background.clear();InvalidateRect(window,nullptr,FALSE);}return;}
+    if(id==Eg2Sync){if(!chosen)set(Loop2,0);else {set(Eg2Sync,(chosen-1)/3.);if(s[Loop2]==0)set(Loop2,(owner->lastEg2Cycle+1)/2.);}return;}
+    if(id==Eg2Rate&&!rateAllowed(s,chosen))return;set(id,chosen/double(count-1));
+  }
   int lfoTab(int x,int y)const{for(int i=0;i<4;++i){auto b=lfoTabs::bounds(i);if(x>=b.x&&x<b.x+b.w&&y>=b.y&&y<b.y+b.h)return i;}return -1;}
-  struct SectionCopy { std::array<double,9> values{}; int kind=0,count=0; } copied;
+  struct SectionCopy { std::array<double,11> values{}; int kind=0,count=0; } copied;
   uint32_t randomSeed=0x5068616f;
   HFONT font{}, header{}, presetFont{}, linkFont{};
   std::vector<uint32_t> background;
@@ -80,14 +100,15 @@ struct Editor::Impl {
   bool aboutOpen = false;
   bool modalActive = false;
   unsigned highlightedRoutes=0,lastHighlightedRoutes=0;
-  bool lastAboutOpen=false;
+  bool lastAboutOpen=false,lastProtect=false;
+  static constexpr int ProtectX=942,ProtectY=114,ProtectW=38,ProtectH=18;
   int lastPressedAction=0;
   theme::Id themeId=theme::Id::Steel;
   std::wstring preferenceKey;
   bool themeOverride=false;
   void finishPointer(){
-    if(drag>=0){int id=drag;drag=-100;owner->end(id);}
-    draggingAmount=false;amountAxis=0;pendingMatrixMenu=-1;pressedAction=0;pressedParam=-1;
+    if(drag>=0){int id=drag;drag=-100;endManual(id);}
+    draggingAmount=false;amountAxis=0;pendingMatrixMenu=-1;pendingVcoTableMenu=-1;pressedAction=0;pressedParam=-1;
     if(GetCapture()==window)ReleaseCapture();
     if(window)InvalidateRect(window,nullptr,FALSE);
   }
@@ -111,7 +132,8 @@ struct Editor::Impl {
     }
   };
   const theme::Style &style() const {return theme::style(themeId);}
-  int unscaled(int value) const {return int(value/scale);}
+  // Inverse of rounded, half-open painted ruler boundaries, including DPI ties.
+  int unscaled(int value) const {return int(std::ceil((value+.5)/scale))-1;}
   static COLORREF ref(uint32_t rgb){return RGB((rgb>>16)&255,(rgb>>8)&255,rgb&255);}
   COLORREF ink(COLORREF steel) const {
     return ref(theme::rgb((uint32_t(GetRValue(steel))<<16)|(uint32_t(GetGValue(steel))<<8)|GetBValue(steel),themeId));
@@ -119,7 +141,7 @@ struct Editor::Impl {
   Color tone(Color steel) const {return theme::colour(steel,themeId);}
   void changeTheme(theme::Id id,bool persist) {
     if(!theme::valid(unsigned(id)))return;
-    if(themeId!=id){themeId=id;background.clear();if(window)InvalidateRect(window,nullptr,FALSE);}
+    if(themeId!=id){themeId=id;if(programmer)programmer->refreshTheme();background.clear();if(window)InvalidateRect(window,nullptr,FALSE);}
     if(persist && !preferenceKey.empty() && !theme::save(preferenceKey.c_str(),id))
       MessageBoxW(window,L"The theme changed for this session, but Windows could not save the preference.",XSYNTH_WIDE(XSYNTH_PRODUCT_NAME),MB_OK|MB_ICONINFORMATION);
   }
@@ -291,7 +313,8 @@ struct Editor::Impl {
     SelectObject(dc, f);
   }
   void knob(int x, int y, int id, const char *label, const State &s, bool staticOnly = false, int valueWidth = 54) {
-    double n = s[id];
+    if(id==oscParam(0,3)||id==oscParam(1,3))label="Position";
+    double n = id==DistDrive?effectiveDrive(s)*.5:s[id];
     n=stepped(id,n);
     if (staticOnly) {
       for (int k = 0; k < 11; ++k) {
@@ -374,10 +397,16 @@ struct Editor::Impl {
     if(mask){TRACKMOUSEEVENT track{sizeof track,TME_LEAVE,window,0};TrackMouseEvent(&track);}
   }
   void valueText(int id,const State &s,char *out,size_t size) {
-    if(id==Unison){int request=UnisonCounts[discrete(Unison,s[Unison])],limit=VoiceCounts[discrete(Voices,s[Voices])];if(request>limit){std::snprintf(out,size,"%d (%d eff)",request,limit);return;}}
-    if(matrixSource(id)){std::snprintf(out,size,"%s",Sources[effectiveSource(s,matrixSlot(id))]);return;}
-    if(matrixDestination(id)){std::snprintf(out,size,"%s",Destinations[routeDestination(s,matrixSlot(id))]);return;}
+    if(id==DistDrive){std::snprintf(out,size,"%.1f%%",effectiveDrive(s)*100);return;}
+    if(id==Voices){std::snprintf(out,size,"%d",voiceCount(s));return;}
+    if(id==Unison){int request=UnisonCounts[discrete(Unison,s[Unison])],limit=voiceCount(s);if(request>limit){std::snprintf(out,size,"%d (%d eff)",request,limit);return;}}
+    if(matrixSource(id)){std::snprintf(out,size,"%s",sourceMenu::label(effectiveSource(s,matrixSlot(id))));return;}
+    if(matrixDestination(id)){std::snprintf(out,size,"%s",effectiveSource(s,matrixSlot(id))?Destinations[routeDestination(s,matrixSlot(id))]:"Off");return;}
     if(id>=ExtraLfoFirst&&id<NewMatrixFirst){State proxy=s;int l=(id-ExtraLfoFirst)/9+1;for(int f=0;f<9;++f)proxy[LfoBaseIds[f]]=s[lfoParam(l,f)];valueText(lfoBase(id),proxy,out,size);return;}
+    // Keep fine depth edits visible without rounding the stored/automated value.
+    if(id==5 || id==6 || id==13 || id==14 || id==19 || id==20) {
+      std::snprintf(out,size,"%.1f%%",s[id]*100);return;
+    }
     if(id==26 && s[LfoRandom]>0) { std::snprintf(out,size,"%s",s[LfoRandom]<.75?"S&H":"SMOOTH");return; }
     if(id==Keytrack || id==Velocity1 || id==Velocity2 || id==XDepth) {
       std::snprintf(out,size,"%.0f%%",s[id]*100);return;
@@ -395,6 +424,88 @@ struct Editor::Impl {
     else if(id==21)std::snprintf(out,size,"%.0f Hz",440*physical(id,s[id]));
     else std::snprintf(out,size,"%.0f%%",s[id]*100);
   }
+
+  void drawVcos(const State&s){
+    auto users=owner->readAssets?owner->readAssets():table::Document{};
+    auto field=[&](int x,int y,int w,const char*label,bool button=false,bool selected=false,int param=-1){
+      if(button){gradient(x,y,w,18,{139,153,150},{52,82,88});bevel(x,y,w,18,selected);}else well(x,y,w,18);
+      int inset=3;bool pressed=param>=0&&pressedParam==param;
+      int count=MultiByteToWideChar(CP_UTF8,MB_ERR_INVALID_CHARS,label,-1,nullptr,0);std::wstring unicode(count?count:1,L' ');if(count)MultiByteToWideChar(CP_UTF8,MB_ERR_INVALID_CHARS,label,-1,unicode.data(),count);
+      auto previous=SelectObject(dc,font);SetBkMode(dc,TRANSPARENT);SetTextColor(dc,selected?ref(style().primaryText):ref(style().activePrimary));RECT outer{z(x),z(y+48),z(x+w),z(y+48+18)};RECT labelBounds=button?RECT{z(x+inset),z(y+48+(pressed?1:0)),z(x+w-inset),z(y+48+18+(pressed?1:0))}:selector::textRect(outer,scale);DrawTextW(dc,unicode.c_str(),-1,&labelBounds,DT_SINGLELINE|DT_CENTER|DT_VCENTER|DT_END_ELLIPSIS);SelectObject(dc,previous);
+      if(!button)selector::drawArrow(dc,outer,scale,ref(style().activePrimary),ink(RGB(50,102,115)));
+    };
+    for(int o=0;o<2;++o){int x=vcoGrid::left(o);int source=discrete(oscParam(o,0),s[oscParam(o,0)]);
+      if(source)owner->lastTableSource[o]=source;
+      const auto mode=vcoGrid::sourceMode(o);
+      field(mode.x,mode.y,mode.w,source?"TBL":"OSC",true,source!=0,oscParam(o,0));
+      if(!source){const char*waves[]={"SINE","TRI","SAW UP","SAW DN","SQUARE","PULSE"};field(vcoGrid::wave(o).x,vcoGrid::wave(o).y,vcoGrid::wave(o).w,waves[discrete(24+o,s[24+o])]);
+        const char*labels[]={"RASTER","CLASSIC","CLEAN"};int selected=s[RasterFirst+o]>=.5?0:s[Engine1+o]>=.5?2:1;
+        for(int k=0;k<3;++k)field(vcoGrid::renderer(o,k).x,vcoGrid::renderer(o,k).y,vcoGrid::renderer(o,k).w,labels[k],true,k==selected,k==selected?(k?Engine1+o:RasterFirst+o):-1);
+      }else{
+        field(vcoGrid::source(o).x,vcoGrid::source(o).y,vcoGrid::source(o).w,source==1?"ROM":"USER");char name[512]="MISSING";
+        if(source==1){int id=discrete(oscParam(o,1),s[oscParam(o,1)]);for(const auto&t:table::factoryBank().tables)if(t.id==id)std::snprintf(name,sizeof name,"%s",t.name.data());}
+        else{int slot=discrete(oscParam(o,2),s[oscParam(o,2)]);std::snprintf(name,sizeof name,"%s",users.slots[slot]?users.slots[slot]->name.c_str():"EMPTY");}
+        // Full name is available in the popup and PGM; never shrink normal type.
+        
+        field(vcoGrid::table(o).x,vcoGrid::table(o).y,vcoGrid::table(o).w,name);field(vcoGrid::pgm(o).x,vcoGrid::pgm(o).y,vcoGrid::pgm(o).w,"PGM",true);
+        const char*samples[]={"S:HOLD","S:LINEAR","S:BAND"};field(vcoGrid::sample(o).x,vcoGrid::sample(o).y,vcoGrid::sample(o).w,samples[discrete(oscParam(o,4),s[oscParam(o,4)])],true,false,oscParam(o,4));
+        field(vcoGrid::frame(o).x,vcoGrid::frame(o).y,vcoGrid::frame(o).w,s[oscParam(o,5)]<.5?"F:STEP":"F:MORPH",true,false,oscParam(o,5));
+      }
+    }
+  }
+  int vcoTableAt(int x,int y)const{
+    auto s=owner->read();for(int o=0;o<2;++o)if(s[oscParam(o,0)]!=0&&vcoGrid::contains(vcoGrid::table(o),x,y))return o;return -1;
+  }
+  bool deferVcoTableMenu(int x,int y){
+    int o=vcoTableAt(x,y);if(o<0)return false;
+    // The opening release belongs to the field, not to the popup's menu loop.
+    pendingVcoTableMenu=o;SetCapture(window);return true;
+  }
+  bool vcoAction(int x,int y,int wheel,bool reverse=false){
+    for(int o=0;o<2;++o){int left=vcoGrid::left(o);if(!vcoGrid::contains(vcoGrid::sourceMode(o),x,y)&&!vcoGrid::contains(vcoGrid::wave(o),x,y)&&!(y>=vcoGrid::Row2&&y<vcoGrid::Row2+vcoGrid::Height&&x>=left&&x<left+vcoGrid::Width))continue;
+      auto s=owner->read();int source=discrete(oscParam(o,0),s[oscParam(o,0)]),relative=x-left;
+      auto set=[&](int id,double n){owner->begin(id);edit(id,n);owner->end(id);};
+      if(vcoGrid::contains(vcoGrid::sourceMode(o),x,y)){
+        // Only a deliberate button click changes the analytic/table family.
+        if(!wheel){if(source)owner->lastTableSource[o]=source;pressedParam=oscParam(o,0);SetCapture(window);set(oscParam(o,0),source?0:std::clamp(owner->lastTableSource[o],1,2)/2.);}
+        return true;
+      }
+      auto menu=[&](const std::vector<std::string>&labels,int current,int px,int py){
+        if(wheel)return std::clamp(current+wheel,0,int(labels.size())-1);
+        HMENU list=CreatePopupMenu();for(size_t i=0;i<labels.size();++i){const auto&text=labels[i];int size=MultiByteToWideChar(CP_UTF8,0,text.c_str(),-1,nullptr,0);std::wstring unicode(size,L' ' );MultiByteToWideChar(CP_UTF8,0,text.c_str(),-1,unicode.data(),size);AppendMenuW(list,MF_STRING|(int(i)==current?MF_CHECKED:0),i+1,unicode.c_str());}
+        POINT p{z(px),z(py+48)};ClientToScreen(window,&p);PopupScope modal(*this);int selected=int(TrackPopupMenu(list,TPM_RETURNCMD|TPM_NONOTIFY,p.x,p.y,0,window,nullptr))-1;DestroyMenu(list);return selected;
+      };
+      if(vcoGrid::contains(vcoGrid::wave(o),x,y)){
+        if(!source){int next=menu({"SINE","TRI","SAW UP","SAW DN","SQUARE","PULSE"},discrete(24+o,s[24+o]),left,112);
+          if(next>=0)set(24+o,next/5.);return true;
+        }
+        if(vcoGrid::contains(vcoGrid::source(o),x,y)){int next=menu({"ROM","USER"},source-1,left,112);if(next>=0){owner->lastTableSource[o]=next+1;set(oscParam(o,0),(next+1)/2.);}return true;}
+        if(vcoGrid::contains(vcoGrid::pgm(o),x,y)){if(!wheel&&!reverse){if(!programmer)programmer=std::make_unique<WaveProgrammer>(*owner);programmer->open(window,o);}return true;}
+        if(vcoGrid::contains(vcoGrid::table(o),x,y)){std::vector<std::string>labels;int current=0,id=oscParam(o,source==1?1:2);auto users=owner->readAssets?owner->readAssets():table::Document{};
+          auto romOrder=romMenu::order(table::factoryBank());
+          if(source==1){for(int index:romOrder){const auto&t=table::factoryBank().tables[index];if(t.id==discrete(id,s[id]))current=int(labels.size());labels.emplace_back(t.name.data());}}
+          else{current=discrete(id,s[id]);for(int i=0;i<16;++i)labels.push_back(std::to_string(i+1)+" "+(users.slots[i]?users.slots[i]->name:"EMPTY"));}
+          int next=-1;
+          if(source==1&&!wheel){
+            HMENU rootMenu=CreatePopupMenu();std::vector<std::string>folderNames;std::vector<HMENU>folders;
+            for(size_t displayed=0;displayed<romOrder.size();++displayed){const auto&t=table::factoryBank().tables[romOrder[displayed]];
+              std::string folder=t.id<36?"FACTORY ROM":table::FamilyNames[t.familyId];
+              auto found=std::find(folderNames.begin(),folderNames.end(),folder);size_t group=size_t(found-folderNames.begin());
+              if(found==folderNames.end()){folderNames.push_back(folder);HMENU child=CreatePopupMenu();folders.push_back(child);std::string caption;for(char c:folder){caption+=c;if(c=='&')caption+='&';}AppendMenuA(rootMenu,MF_POPUP,UINT_PTR(child),caption.c_str());}
+              AppendMenuA(folders[group],MF_STRING|(int(displayed)==current?MF_CHECKED:0),displayed+1,t.name.data());
+            }
+            POINT point{z(left+52),z(112+48)};ClientToScreen(window,&point);PopupScope modal(*this);
+            next=int(TrackPopupMenu(rootMenu,TPM_RETURNCMD|TPM_NONOTIFY,point.x,point.y,0,window,nullptr))-1;DestroyMenu(rootMenu);
+          }else next=menu(labels,current,left+52,112);
+          if(next>=0)set(id,(source==1?table::factoryBank().tables[romOrder[next]].id:next)/double(source==1?65535:15));return true;
+        }
+      }else if(y>=vcoGrid::Row2){
+        if(!source){int chosen=relative/49;if(chosen>2)chosen=2;int current=s[RasterFirst+o]>=.5?0:s[Engine1+o]>=.5?2:1;if(wheel)chosen=std::clamp(current+wheel,0,2);else if(reverse)chosen=(current+2)%3;if(!wheel){pressedParam=chosen?Engine1+o:RasterFirst+o;SetCapture(window);}set(RasterFirst+o,chosen==0?1:0);if(chosen)set(Engine1+o,chosen==2?1:0);return true;}
+        if(relative<68||relative>=78){int id=oscParam(o,relative<68?4:5),count=stepsFor(id)+1;int current=discrete(id,s[id]);int next=wheel?std::clamp(current+wheel,0,count-1):(current+(reverse?count-1:1))%count;if(!wheel){pressedParam=id;SetCapture(window);}set(id,next/double(count-1));return true;}
+      }
+      return true;
+    }return false;
+  }
   void selector(const Control &c,const State &s) {
     const auto labelRect=labelBounds(c),field=fieldBounds(c);
     text(labelRect.x,labelRect.y,labelRect.w,labelRect.h,c.label);
@@ -406,13 +517,13 @@ struct Editor::Impl {
                (z(field.y+48+field.h)-z(field.y+48))/scale,{139,153,150},{52,82,88});
       bevel(field.x,field.y,field.w,field.h,pressed);
     }
-    char value[96]{}; valueText(effectiveId(c,s),s,value,sizeof value);
-    // Reserve the arrow gutter symmetrically: value, label and field now share
-    // their exact centre, including narrow Voices and modulation source fields.
-    text(c.x+moduleGrid::SelectorTextInset,c.y+2+(pressed?1:0),c.w-2*moduleGrid::SelectorTextInset,
-         moduleGrid::SelectorHeight-4,value,RGB(127,215,216));
-    if(dropdown){line(c.x+c.w-8,c.y+7,c.x+c.w-5,c.y+10,RGB(127,215,216));
-    line(c.x+c.w-5,c.y+10,c.x+c.w-2,c.y+7,RGB(127,215,216));}
+    char value[96]{};int id=effectiveId(c,s);
+    if(id==Loop2)std::snprintf(value,sizeof value,"%s",features::cycle(s,owner->lastEg2Cycle)?"A-D-R":"A-D");
+    else if(id==Eg2Sync)choiceText("OFF|FREE|RETRIG|FIT|LIMIT",features::loopMode(s),value,sizeof value);
+    else if(id==28||id==VcfBSlope)std::snprintf(value,sizeof value,"%ddB",s[id]>=.5?24:12);
+    else {valueText(id,s,value,sizeof value);if(id==Eg2Rate&&!rateAllowed(s,discrete(id,s[id])))strcat_s(value,"!");}
+    if(dropdown){RECT outer{z(field.x),z(field.y+48),z(field.x+field.w),z(field.y+48+field.h)};auto label=selector::textRect(outer,scale);SetTextColor(dc,ink(RGB(127,215,216)));SetBkMode(dc,TRANSPARENT);auto previous=SelectObject(dc,font);DrawTextA(dc,value,-1,&label,DT_CENTER|DT_SINGLELINE|DT_VCENTER|DT_END_ELLIPSIS|DT_NOPREFIX);SelectObject(dc,previous);selector::drawArrow(dc,outer,scale,ink(RGB(127,215,216)),ink(RGB(50,102,115)));}
+    else {int padding=c.w<90?3:moduleGrid::SelectorTextInset;text(c.x+padding,c.y+2+(pressed?1:0),c.w-2*padding,moduleGrid::SelectorHeight-4,value,RGB(127,215,216));}
   }
   void toggle(const Control &c,const State &s) {
     bool on=s[c.id]>=.5;
@@ -430,7 +541,7 @@ struct Editor::Impl {
     fill(c.x,c.y,c.w,faceGrid::AmountHeight,RGB(245,245,235));bevel(c.x,c.y,c.w,faceGrid::AmountHeight,true);
     int destination=routeDestination(s,matrixSlot(c.id));
     char value[32]{};
-    bool pitch=destination==0 || destination==3,octaves=destination==8 || destination==10;
+    bool pitch=destination==0 || destination==3,octaves=destination==8 || destination==10 || destination==44;
     std::snprintf(value,sizeof value,pitch?"%+.1f st":octaves?"%+.2f oct":"%+.1f%%",(s[c.id]*2-1)*(pitch?48:octaves?4:100));
     text(c.x+2,c.y+1,c.w-4,14,value,RGB(0,0,0));
     int center=c.x+c.w/2,endpoint=c.x+5+int(std::round(s[c.id]*(c.w-10)));
@@ -439,6 +550,7 @@ struct Editor::Impl {
   }
   const Control *controlAt(int x,int y) const {
     for(const auto &c:controls) {
+      if(c.id==24||c.id==25||c.id==Engine1||c.id==Engine2)continue;
       if(c.kind==ControlKind::Selector || c.kind==ControlKind::Toggle) { if(x>=c.x && x<c.x+c.w && y>=c.y && y<c.y+(c.kind==ControlKind::Toggle?22:18))return &c; }
       else if(x>=c.x-5 && x<c.x+40 && y>=c.y-5 && y<c.y+63)return &c;
     }
@@ -456,29 +568,44 @@ struct Editor::Impl {
     change(lfoParam(lfo,7),chosen>=6?(chosen-5)/2.:0);
     if(chosen<6)change(lfoParam(lfo,3),chosen/5.);
   }
+  void chooseVoices(int chosen){
+    auto change=[&](int id,double n){owner->begin(id);edit(id,n);owner->end(id);};
+    if(chosen==5||chosen==6)change(VoicesExtension,(chosen-4)/2.);
+    else {change(Voices,chosen/5.);if(owner->read()[VoicesExtension]!=0)change(VoicesExtension,0);}
+  }
   void select(const Control &c,int direction=1) {
+    if(features::isFeatureSelector(c.id)){featureSelect(c,direction,false);return;}
     auto state=owner->read();int id=effectiveId(c,state),slot=matrixSlot(id);
     bool destination=matrixDestination(id),source=matrixSource(id),wave=lfoBase(id)==26;
     int lfo=id>=ExtraLfoFirst&&id<NewMatrixFirst?(id-ExtraLfoFirst)/9+1:0;
     int randomId=lfoParam(lfo,7),waveId=lfoParam(lfo,3);
-    int count=selectorCount(c,state),current=destination?routeDestination(state,slot):source?sourceMenu::position(effectiveSource(state,slot)):wave?lfoShapeIndex(id,state):discrete(id,state[id]);
-    int chosen=(current+direction+count)%count;
+    int count=selectorCount(c,state),current=id==Voices?voiceChoice(state):destination?routeDestination(state,slot):source?sourceMenu::position(effectiveSource(state,slot)):wave?lfoShapeIndex(id,state):discrete(id,state[id]);
+    int chosen=destination?destinationMenu::step(current,direction,true):(current+direction+count)%count;
     if(isDropdown(c,state)){
-      HMENU menu=CreatePopupMenu();
-      for(int i=0;i<count;++i){char label[96]{};
-        if(source)std::snprintf(label,sizeof label,"%s",Sources[sourceMenu::identity(i)]);
+      HMENU menu=destination?destinationMenu::createMenu(current,effectiveSource(state,slot)==0):CreatePopupMenu();
+      for(int i=0;!destination&&i<count;++i){char label[96]{};
+        if(source)std::snprintf(label,sizeof label,"%s",sourceMenu::label(sourceMenu::identity(i)));
         else if(destination)std::snprintf(label,sizeof label,"%s",Destinations[i]);
         else {auto candidate=state;if(wave){candidate[randomId]=i>=6?(i-5)/2.:0;if(i<6)candidate[waveId]=i/5.;}else candidate[id]=double(i)/(count-1);valueText(id,candidate,label,sizeof label);}
         AppendMenuA(menu,MF_STRING|(i==current?MF_CHECKED:0),i+1,label);
       }
       POINT point{z(c.x),z(c.y+48+18)};ClientToScreen(window,&point);PopupScope modal(*this);
-      UINT result=TrackPopupMenu(menu,TPM_RETURNCMD|TPM_NONOTIFY,point.x,point.y,0,window,nullptr);DestroyMenu(menu);if(!result)return;chosen=int(result)-1;
+      UINT result=TrackPopupMenu(menu,TPM_RETURNCMD|TPM_NONOTIFY,point.x,point.y,0,window,nullptr);DestroyMenu(menu);if(!result)return;
+      if(destination&&result==destinationMenu::OffCommand){
+        // Disconnect through the existing OFF source representation. Preserve
+        // the last target/amount for re-enabling; no new saved destination ID.
+        for(int sourceId:{SourceExtensionFirst+slot,matrixId(slot)}){owner->begin(sourceId);edit(sourceId,0);owner->end(sourceId);}return;
+      }
+      chosen=int(result)-1;
     }
     auto change=[&](int p,double value){owner->begin(p);edit(p,value);owner->end(p);};
-    if(wave)chooseLfoShape(id,chosen);
+    if(id==Voices)chooseVoices(chosen);
+    else if(wave)chooseLfoShape(id,chosen);
     else if(source){int sourceId=sourceMenu::identity(chosen);if(sourceId<LegacySourceCount){change(SourceExtensionFirst+slot,0);change(id,sourceId/10.);}else change(SourceExtensionFirst+slot,(sourceId-10)/3.);}
     else if(destination){
-      if(slot>=6){change(id,chosen/double(DestinationCount-1));return;}
+      change(BFilterRouteFirst+slot,chosen>=44?(chosen-43)/2.:0.);if(chosen>=44)return;
+      change(PositionRouteFirst+slot,chosen>=42?(chosen-41)/2.:0.);if(chosen>=42)return;
+      if(slot>=6){change(id,chosen/41.);return;}
       change(DetuneRouteFirst+slot,chosen==EstablishedDestinationCount?1.:0.);if(chosen==EstablishedDestinationCount)return;
       if(chosen<LegacyDestinationCount){change(ExpandedDestinationFirst+slot,0.);change(id,chosen/double(LegacyDestinationCount-1));}
       else change(ExpandedDestinationFirst+slot,(chosen+1)/double(EstablishedDestinationCount));
@@ -494,10 +621,10 @@ struct Editor::Impl {
     return {titleInset(), titleInset(), titleInset() + title::Width * titleScale(),
             titleBaseline()};
   }
-  RECT aboutBounds() const { return {z(262), z(100), z(698), z(516)}; }
+  RECT aboutBounds() const { return {z(278), z(100), z(714), z(516)}; }
   RECT themeBounds() const {auto b=ui::ThemeButton;return {z(b.x),z(b.y),z(b.x+b.w),z(b.y+b.h)};}
   RECT aboutLinkBounds(const wchar_t *label,int y) {
-    auto previous = SelectObject(dc, font);
+    auto previous = SelectObject(dc, linkFont);
     SIZE size{};
     GetTextExtentPoint32W(dc, label, int(std::wcslen(label)), &size);
     SelectObject(dc, previous);
@@ -538,7 +665,16 @@ struct Editor::Impl {
     line(x,y,x+w,y,RGB(9,29,35));
     line(x,y+h,x+w,y+h,RGB(73,126,137));
   }
-  void headerMaterialPixels(Bounds b) {headerMaterial(b.x/scale,b.y/scale-48,b.w/scale,b.h/scale,true);}
+  void headerMaterialPixels(Bounds b) {
+    headerMaterial(b.x/scale,b.y/scale-48,b.w/scale,b.h/scale,true);
+    // About-only raised plaque: crisp light upper/left and dark lower/right.
+    const int depth=std::max(1,z(1));
+    auto edge=[&](RECT r,COLORREF c){auto brush=CreateSolidBrush(ink(c));FillRect(dc,&r,brush);DeleteObject(brush);};
+    edge({b.x,b.y,b.x+b.w,b.y+depth},RGB(131,169,171));
+    edge({b.x,b.y+depth,b.x+depth,b.y+b.h},RGB(91,132,141));
+    edge({b.x,b.y+b.h-depth,b.x+b.w,b.y+b.h},RGB(9,24,29));
+    edge({b.x+b.w-depth,b.y,b.x+b.w,b.y+b.h},RGB(19,42,48));
+  }
   void themeButton() {
     const auto b=ui::ThemeButton;const bool pressed=pressedAction==-3;
     gradient(b.x,b.y-48,b.w,b.h,{139,153,150},{52,82,88});bevel(b.x,b.y-48,b.w,b.h,pressed);
@@ -549,46 +685,54 @@ struct Editor::Impl {
     auto previous = SelectObject(dc, link?linkFont:font);
     SetBkMode(dc, TRANSPARENT);
     SetTextColor(dc, ink(color));
-    RECT r{z(274), z(y), z(686), z(y + 16)};
-    DrawTextW(dc, value, -1, &r, DT_CENTER | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
+    SIZE extent{};
+    GetTextExtentPoint32W(dc, value, int(std::wcslen(value)), &extent);
+    // One physical center axis for every line, measured with its actual font.
+    const int x=(width-extent.cx)/2;
+    TextOutW(dc,x,z(y)+(z(y+16)-z(y)-extent.cy)/2,value,int(std::wcslen(value)));
     SelectObject(dc, previous);
   }
   void aboutPanel() {
     // A stepped steel rim raises the face above the surrounding modules.
     // Keep every edge inside the existing panel bounds, with no blurred shadow.
-    fill(262, 52, 436, 416, RGB(9, 25, 30));
+    fill(278, 52, 436, 416, RGB(9, 25, 30));
     const COLORREF light[] = {RGB(195, 218, 211), RGB(131, 169, 171),
                               RGB(91, 132, 141), RGB(64, 108, 120)};
     const COLORREF dark[] = {RGB(9, 24, 29), RGB(19, 42, 48),
                              RGB(31, 65, 74), RGB(42, 85, 95)};
     for (int i = 1; i <= 4; ++i) {
-      fill(262 + i, 52 + i, 436 - 2 * i, 1, light[i - 1]);
-      fill(262 + i, 52 + i, 1, 416 - 2 * i, light[i - 1]);
-      fill(697 - i, 52 + i, 1, 416 - 2 * i, dark[i - 1]);
-      fill(262 + i, 467 - i, 436 - 2 * i, 1, dark[i - 1]);
+      fill(278 + i, 52 + i, 436 - 2 * i, 1, light[i - 1]);
+      fill(278 + i, 52 + i, 1, 416 - 2 * i, light[i - 1]);
+      fill(713 - i, 52 + i, 1, 416 - 2 * i, dark[i - 1]);
+      fill(278 + i, 467 - i, 436 - 2 * i, 1, dark[i - 1]);
     }
-    gradient(267, 57, 426, 406, {49, 83, 91}, {23, 58, 67});
-    for (int x : {270, 690})
+    gradient(283, 57, 426, 406, {49, 83, 91}, {23, 58, 67});
+    for (int x : {286, 706})
       for (int y : {62, 458})
         screw(x, y);
     const auto plaque=ui::plaque(width,scale),art=ui::aboutLogo(width,scale);
     // Invert only the coordinate transform; bitmap replication remains integer.
     headerMaterialPixels(plaque);
     bitmapTitle(art.x,art.y,titleScale(),true);
+    for(int line=0;line<3;++line)aboutText(ui::ProtectNoteY[line],ui::ProtectNote[line]);
     aboutText(ui::CreditY[0], L"Version " XSYNTH_WIDE(XSYNTH_VERSION));
     aboutText(ui::CreditY[1], L"Developed by Phaos", RGB(127, 215, 216));
     aboutText(ui::CreditY[2], AboutUrl, RGB(66, 184, 208),true);
     aboutText(ui::AboutEmailY, AboutEmail, RGB(66, 184, 208),true);
     aboutText(ui::CreditY[3], L"2026");
-    aboutText(ui::CreditY[4], L"Based on Xsynth 1.0.2");
+    aboutText(ui::CreditY[4], L"Originally based on Xsynth 1.0.2");
     aboutText(ui::CreditY[5], L"by Steve J. Brookes, 1999");
     aboutText(ui::CreditY[6], L"Original Xsynth code");
     aboutText(ui::CreditY[7], L"Copyright \u00a9 1999 S. J. Brookes");
-    aboutText(ui::CreditY[8], L"Xsynth 2000 synthesis development,");
-    aboutText(ui::CreditY[9], L"Windows VST3 implementation and GUI");
-    aboutText(ui::CreditY[10], L"Copyright \u00a9 2026 Phaos");
-    aboutText(ui::CreditY[11], L"Based on the GPL-licensed Xsynth source.");
+    aboutText(ui::CreditY[8], L"Xsynth 2000 developed by Phaos");
+    aboutText(ui::CreditY[9], L"as a substantial expansion of Xsynth 1.0.2");
+    aboutText(ui::CreditY[10], L"Windows VST3 implementation and GUI");
+    aboutText(ui::CreditY[11], L"Copyright \u00a9 2026 Phaos");
+    aboutText(ui::CreditY[12], L"Based on the GPL-licensed Xsynth source.");
     themeButton();
+    const auto divider=ui::ProtectDivider;
+    line(divider.x,divider.y-48,divider.x+divider.w,divider.y-48,RGB(9,29,35));
+    line(divider.x,divider.y-47,divider.x+divider.w,divider.y-47,RGB(73,126,137));
   }
   void headerButtons(bool pressed) {
     for(const auto &b:buttons) {
@@ -608,11 +752,11 @@ struct Editor::Impl {
     RECT rect{z(b.x+ui::PresetTextLeft),z(b.y+3),z(b.x+b.w-ui::PresetTextRight),z(b.y+b.h-3)};
     auto displayed=dssi::wide(label);
     DrawTextW(dc,displayed.c_str(),-1,&rect,DT_CENTER|DT_VCENTER|DT_SINGLELINE|DT_END_ELLIPSIS|DT_NOPREFIX);SelectObject(dc,oldFont);
-    line(b.x+b.w-13,b.y-48+10,b.x+b.w-10,b.y-48+13,ref(style().readoutText));line(b.x+b.w-10,b.y-48+13,b.x+b.w-7,b.y-48+10,ref(style().readoutText));
+    selector::drawArrow(dc,RECT{z(b.x),z(b.y),z(b.x+b.w),z(b.y+b.h)},scale,ref(style().readoutText),ink(RGB(50,102,115)));
   }
   void factoryPreset(int index) {
     if(index!=factory::Init&&(index<0||index>=factory::Count))return;
-    if(applyPatch(index==factory::Init?factory::initState():factory::Presets[index].state))presets.select(index);
+    if(applyPatch(index==factory::Init?factory::initState():factory::presetState(index)))presets.select(index);
     importedName=index==factory::Init?L"INIT":dssi::wide(factory::Presets[index].name);
     for(auto& c:importedName)if(c<32||wcschr(L"<>:\"/\\|?*",c))c=L'_';
     InvalidateRect(window,nullptr,FALSE);
@@ -642,10 +786,13 @@ struct Editor::Impl {
   void render(const State &s) {
     if (!dc)
       prepare();
+    if(s[Loop2]>0)owner->lastEg2Cycle=features::cycle(s);updateClock();
     const auto presetLabel=presets.label(s);
-    if(!background.empty() && s==last && presetLabel==lastPresetLabel && aboutOpen==lastAboutOpen &&
+    const bool protecting=owner->readProtect&&owner->readProtect();
+    if(!background.empty() && s==last && protecting==lastProtect && presetLabel==lastPresetLabel && aboutOpen==lastAboutOpen &&
        pressedAction==lastPressedAction && pressedParam==lastPressedParam && highlightedRoutes==lastHighlightedRoutes)return;
     GdiFlush();
+    for(int o=0;o<2;++o)if(s[oscParam(o,0)]!=last[oscParam(o,0)]){if(drag>=0)finishPointer();background.clear();}
     if (background.empty()) {
       gradient(0,-48,NativeWidth,NativeHeight,{62,98,106},{25,56,62});
       for(const auto &p:panels) {
@@ -654,18 +801,26 @@ struct Editor::Impl {
         bevel(shell.x,shell.y,shell.w,shell.h);
         headerMaterial(headerRect.x,headerRect.y,headerRect.w,headerRect.h);
         text(headerRect.x,headerRect.y,headerRect.w,headerRect.h,p.label,ref(style().headerText),true);
-        screw(p.x+6,p.y+11);screw(p.x+p.w-6,p.y+11);
+        screw(p.x+6,p.y+6);screw(p.x+p.w-6,p.y+6);
         screw(p.x+6,p.y+p.h-6);screw(p.x+p.w-6,p.y+p.h-6);
       }
       for(const auto &c:controls)if(c.kind==ControlKind::Knob)knob(c.x,c.y,effectiveId(c,s),c.label,s,true);
       headerStrip();
       GdiFlush();background.assign(pixels,pixels+width*height);
     } else std::copy(background.begin(),background.end(),pixels);
+    drawVcos(s);
+    headerMaterial(550,4,130,14);text(550,4,130,14,owner->selectedFilter?"VCF B >":"VCF A >",ref(style().headerText),true);
+    for(int i=0;i<2;++i){auto b=vcfTabs::bounds(i);gradient(b.x,b.y,b.w,b.h,{139,153,150},{52,82,88});bevel(b.x,b.y,b.w,b.h,i==owner->selectedFilter);text(b.x,b.y+2,b.w,b.h-4,i?"B":"A",ref(style().activePrimary));}
     for(const auto &c:controls) {
+      if(c.id==24||c.id==25||c.id==Engine1||c.id==Engine2)continue;
       if(c.kind==ControlKind::Knob)knob(c.x,c.y,effectiveId(c,s),c.label,s,false,c.valueWidth);
       else if(c.kind==ControlKind::Toggle)toggle(c,s);
       else selector(c,s);
     }
+    text(ProtectX,ProtectY-15,ProtectW,12,"Protect");
+    gradient(ProtectX,ProtectY,ProtectW,ProtectH,{139,153,150},{52,82,88});
+    bevel(ProtectX,ProtectY,ProtectW,ProtectH,pressedAction==-4);
+    text(ProtectX+3,ProtectY+2,ProtectW-6,ProtectH-4,protecting?"ON":"OFF",protecting?ref(style().activePrimary):ref(style().primaryText));
     for(int tab=0;tab<4;++tab){auto b=lfoTabs::bounds(tab);gradient(b.x,b.y,b.w,b.h,{139,153,150},{52,82,88});bevel(b.x,b.y,b.w,b.h,tab==selectedLfo);char label[2]={char('1'+tab),0};text(b.x,b.y+2,b.w,b.h-4,label,tab==selectedLfo?ref(style().activePrimary):ref(style().primaryText));}
     for(const auto &c:routes) {
       if(c.kind==ControlKind::Amount)amount(c,s);
@@ -679,17 +834,26 @@ struct Editor::Impl {
       text(offset+10,y,14,moduleGrid::SelectorHeight,number,ref(style().secondaryText));text(offset+132,y,14,moduleGrid::SelectorHeight,">");
     }
     if(modulated(s,-1))fill(144,8,3,3,RGB(66,184,208));
-    if(modulated(s,-2))fill(452,8,3,3,RGB(66,184,208));
+    if(modulated(s,-2))fill(432,8,3,3,RGB(66,184,208));
     if(pressedAction)headerButtons(true);
     presetStrip(presetLabel);
     for(int slot=0;slot<MatrixSlots;++slot)if(highlightedRoutes&(1u<<slot)) {
       int offset=matrixGrid::origin(slot),y=matrixGrid::row(slot);
-      line(offset+28,y-2,offset+470,y-2,RGB(127,215,216));
-      line(offset+28,y+19,offset+470,y+19,RGB(127,215,216));
+      line(offset+28,y-2,offset+486,y-2,RGB(127,215,216));
+      line(offset+28,y+19,offset+486,y+19,RGB(127,215,216));
     }
     if (aboutOpen)
       aboutPanel();
-    last = s;lastAboutOpen=aboutOpen;lastPressedAction=pressedAction;lastPressedParam=pressedParam;lastHighlightedRoutes=highlightedRoutes;lastPresetLabel=presetLabel;
+    lastProtect=protecting;last = s;lastAboutOpen=aboutOpen;lastPressedAction=pressedAction;lastPressedParam=pressedParam;lastHighlightedRoutes=highlightedRoutes;lastPresetLabel=presetLabel;
+  }
+  double manualValue(int id)const{auto s=owner->read();return id==DistDrive?effectiveDrive(s)*.5:s[id];}
+  void beginManual(int id){owner->begin(id);if(id==DistDrive)owner->begin(DriveExtension);}
+  void endManual(int id){if(id==DistDrive)owner->end(DriveExtension);owner->end(id);}
+  void editManual(int id,double value){
+    if(id!=DistDrive){edit(id,value);return;}
+    double drive=2*std::clamp(value,0.,1.);
+    if(drive<=1){edit(DriveExtension,0);edit(DistDrive,drive);}
+    else {edit(DistDrive,1);edit(DriveExtension,drive-1);}
   }
   void edit(int id, double value) {
     value = std::clamp(value, 0., 1.);
@@ -702,10 +866,10 @@ struct Editor::Impl {
     const int section=context::sectionAt(x,y,width,height);
     if(section<0)return;
     PopupScope modal(*this);
-    static constexpr int ids[4][9]={{0,1,24,Engine1,-1,-1,-1,-1,-1},
-      {2,3,25,Engine2,-1,-1,-1,-1,-1},{9,10,11,12,Curve1,Velocity1,13,14,-1},
-      {15,16,17,18,Curve2,Velocity2,19,20,Loop2}};
-    int count=section<2?4:section==2?8:9,kind=section<2?1:2;
+    static constexpr int ids[4][11]={{0,1,24,Engine1,147,148,149,150,151,152,RasterFirst},
+      {2,3,25,Engine2,153,154,155,156,157,158,RasterFirst+1},{9,10,11,12,Curve1,Velocity1,13,14,-1,-1,-1},
+      {15,16,17,18,Curve2,Velocity2,19,20,Loop2,Eg2Sync,Eg2Rate}};
+    int count=section<2?11:section==2?8:11,kind=section<2?1:2;
     HMENU menu=CreatePopupMenu(),mutate=CreatePopupMenu();
     AppendMenuW(menu,MF_STRING,1,L"Copy");
     AppendMenuW(menu,MF_STRING|(copied.kind==kind?0:MF_GRAYED),2,L"Paste");
@@ -722,21 +886,26 @@ struct Editor::Impl {
     auto state=owner->read();
     auto change=[&](int id,double value){owner->begin(id);edit(id,value);owner->end(id);};
     if(command==1) { copied.kind=kind;copied.count=count;for(int i=0;i<count;++i)copied.values[i]=state[ids[section][i]];return; }
-    if(command==4) { for(int i=0;i<4;++i){change(ids[0][i],state[ids[1][i]]);change(ids[1][i],state[ids[0][i]]);}return; }
+    if(command==4) { for(int i=0;i<11;++i){change(ids[0][i],state[ids[1][i]]);change(ids[1][i],state[ids[0][i]]);}return; }
     if(command==2 || command==3) {
-      int target=command==3?(section^1):section,n=target<2?4:target==2?8:9;
-      for(int i=0;i<n;++i)change(ids[target][i],i<copied.count?copied.values[i]:defaults()[ids[target][i]]);
+      int target=command==3?(section^1):section,n=target<2?11:target==2?8:11;
+      for(int i=0;i<n;++i)change(ids[target][i],i<copied.count?copied.values[i]:newInstanceState()[ids[target][i]]);
       return;
     }
     auto random=[&]{randomSeed^=randomSeed<<13;randomSeed^=randomSeed>>17;randomSeed^=randomSeed<<5;return (randomSeed>>8)/16777216.;};
     for(int i=0;i<count;++i) {
       int id=ids[section][i]; double value=state[id];
-      if(command==5)value=defaults()[id];
+      if(command==5)value=newInstanceState()[id];
       else if(command==6)value=random();
       else {
         double amount=command==10?.05:command==11?.1:command==12?.2:.4;
         if(stepsFor(id)) { if(random()<amount)value=random(); }
         else value+=(random()*2-1)*amount;
+      }
+      if(command!=5&&id>=OscSourceFirst&&id<PositionRouteFirst){int field=(id-OscSourceFirst)%6;
+        if(field==0&&value>=.75){auto doc=owner->readAssets?owner->readAssets():table::Document{};bool populated=false;for(const auto&t:doc.slots)populated|=bool(t);if(!populated)value=.5;}
+        if(field==1){const auto&tables=table::factoryBank().tables;value=tables[std::min(tables.size()-1,size_t(value*tables.size()))].id/65535.;}
+        if(field==2){auto doc=owner->readAssets?owner->readAssets():table::Document{};std::vector<int>occupied;for(int slot=0;slot<16;++slot)if(doc.slots[slot])occupied.push_back(slot);if(occupied.empty())value=state[id];else value=occupied[std::min(occupied.size()-1,size_t(value*occupied.size()))]/15.;}
       }
       change(id,value);
     }
@@ -820,28 +989,40 @@ struct Editor::Impl {
       return;
     if (save) {
       const wchar_t *extension=wcsrchr(path,L'.');
-      auto b = extension && _wcsicmp(extension,L".Xpatch")==0 ? exportPatch(owner->read()) : encode(owner->read());
-      std::ofstream out(path, std::ios::binary);
-      out.write(reinterpret_cast<const char *>(b.data()), b.size());
-      out.close();
-      if (!out)
+      if(extension&&_wcsicmp(extension,L".Xpatch")==0){auto s=owner->read();if(s[oscParam(0,0)]||s[oscParam(1,0)]||s[RasterFirst]||s[RasterFirst+1]){MessageBoxW(window,L"ROM/USER/RASTER cannot be exported as an original Xpatch. Save a native preset.",L"Xsynth 2000",MB_ICONERROR);return;}}
+      auto b = extension && _wcsicmp(extension,L".Xpatch")==0 ? exportPatch(owner->read()) : encodeDocument(owner->read(),owner->readAssets?owner->readAssets():table::Document{});
+      // Complete a sibling temporary file before replacing an existing preset.
+      wchar_t temporary[MAX_PATH]{};
+      auto directory=std::filesystem::path(path).parent_path().wstring();
+      bool saved=false;
+      if(GetTempFileNameW(directory.c_str(),L"XSE",0,temporary)) {
+        HANDLE file=CreateFileW(temporary,GENERIC_WRITE,0,nullptr,TRUNCATE_EXISTING,FILE_ATTRIBUTE_NORMAL,nullptr);
+        if(file!=INVALID_HANDLE_VALUE) {
+          DWORD written=0;
+          saved=WriteFile(file,b.data(),DWORD(b.size()),&written,nullptr)&&written==b.size()&&FlushFileBuffers(file);
+          CloseHandle(file);
+          if(saved)saved=MoveFileExW(temporary,path,MOVEFILE_REPLACE_EXISTING|MOVEFILE_WRITE_THROUGH)!=0;
+        }
+        if(!saved)DeleteFileW(temporary);
+      }
+      if (!saved)
         MessageBoxW(window, L"Could not save patch.", XSYNTH_WIDE(XSYNTH_PRODUCT_NAME), MB_ICONERROR);
       else {presets.loaded(owner->read(),std::filesystem::path(path).stem().u8string());importedName=std::filesystem::path(path).stem().wstring();InvalidateRect(window,nullptr,FALSE);}
     } else {
       std::ifstream in(path, std::ios::binary | std::ios::ate);
-      if (!in || (in.tellg() != 209 && in.tellg() != StateBytes && in.tellg() != 8+PreUnisonCount*8 && in.tellg() != 8+PreviousCount*8 && in.tellg() != 8+LegacyCount*8)) {
+      if (!in || in.tellg()<8 || in.tellg()>table::MaxStateBytes) {
         MessageBoxW(window, L"Expected an original Xsynth patch or an Xsynth 2000 preset.", XSYNTH_WIDE(XSYNTH_PRODUCT_NAME), MB_ICONERROR);
         return;
       }
       auto length=size_t(in.tellg());in.seekg(0);
       std::vector<uint8_t> b(length);
       in.read(reinterpret_cast<char *>(b.data()), length);
-      State s;
-      if (!(length==209?importPatch(b,s):decode(b.data(),b.size(),s))) {
+      State s;table::Document doc;
+      if (!(length==209?importPatch(b,s):decodeDocument(b.data(),b.size(),s,doc))) {
         MessageBoxW(window, L"Invalid Xsynth patch data.", XSYNTH_WIDE(XSYNTH_PRODUCT_NAME), MB_ICONERROR);
         return;
       }
-      if(!applyPatch(s))return;
+      if(owner->restoreDocument){if(!owner->restoreDocument(s,doc))return;}else if(!applyPatch(s))return;
       presets.loaded(s,std::filesystem::path(path).stem().u8string());
       importedName=std::filesystem::path(path).stem().wstring();
     }
@@ -883,7 +1064,7 @@ struct Editor::Impl {
         ScreenToClient(w, &p);
         bool clickable = contains(self->logoBounds(), p) ||
             self->aboutOpen;
-        if(!self->aboutOpen){int x=int(p.x/self->scale),y=int(p.y/self->scale);for(auto b:{ui::PresetPrevious,ui::PresetField,ui::PresetNext})if(x>=b.x&&x<b.x+b.w&&y>=b.y&&y<b.y+b.h)clickable=true;}
+        if(!self->aboutOpen){int x=self->unscaled(p.x),y=self->unscaled(p.y);for(auto b:{ui::PresetPrevious,ui::PresetField,ui::PresetNext})if(x>=b.x&&x<b.x+b.w&&y>=b.y&&y<b.y+b.h)clickable=true;}
         SetCursor(LoadCursor(nullptr, clickable ? IDC_HAND : IDC_ARROW));
         return TRUE;
       }
@@ -897,7 +1078,8 @@ struct Editor::Impl {
       return 0;
     }
     case WM_TIMER:
-      if (self->last != self->owner->read())
+      {double oldTempo=self->guiTempo,oldRate=self->guiRate;self->updateClock();if(oldTempo!=self->guiTempo||oldRate!=self->guiRate)self->background.clear();}
+      if (self->last != self->owner->read()||self->background.empty())
         InvalidateRect(w, nullptr, FALSE);
       return 0;
     case WM_LBUTTONDOWN: {
@@ -927,14 +1109,21 @@ struct Editor::Impl {
         }
         return 0; // No click-through to knobs, switches or patch actions.
       }
-      int x = int(GET_X_LPARAM(lp) / self->scale), y = int(GET_Y_LPARAM(lp) / self->scale) - 48;
+      int x = self->unscaled(GET_X_LPARAM(lp)), y = self->unscaled(GET_Y_LPARAM(lp)) - 48;
       auto inside=[&](Bounds b){return x>=b.x&&x<b.x+b.w&&y+48>=b.y&&y+48<b.y+b.h;};
       if(inside(ui::PresetPrevious)){self->factoryPreset(self->presets.adjacent(-1));return 0;}
       if(inside(ui::PresetNext)){self->factoryPreset(self->presets.adjacent(1));return 0;}
       if(inside(ui::PresetField)){self->presetMenu();return 0;}
+      if(x>=ProtectX&&x<ProtectX+ProtectW&&y>=ProtectY&&y<ProtectY+ProtectH){
+        if(self->owner->changeProtect)self->owner->changeProtect(!(self->owner->readProtect&&self->owner->readProtect()));
+        self->pressedAction=-4;SetCapture(w);InvalidateRect(w,nullptr,FALSE);return 0;
+      }
+      if(self->deferVcoTableMenu(x,y))return 0;
+      if(self->vcoAction(x,y,0)){InvalidateRect(w,nullptr,FALSE);return 0;}
+      if(self->filterTab(x,y)>=0){self->selectFilter(self->filterTab(x,y));return 0;}
       if(self->lfoTab(x,y)>=0){self->selectLfo(self->lfoTab(x,y));return 0;}
       const auto *control=self->controlAt(x,y);
-      if(control && matrixSlot(control->id)>=0 && control->kind==ControlKind::Selector) {
+      if(control && (matrixSlot(control->id)>=0||control->id==Eg2Rate||control->id==DistMode) && control->kind==ControlKind::Selector) {
         // Open on the completed opening click, not while its button is held.
         self->pendingMatrixMenu=control->id;SetCapture(w);return 0;
       }
@@ -949,8 +1138,8 @@ struct Editor::Impl {
         self->startX = GET_X_LPARAM(lp);
         self->draggingAmount=control && control->kind==ControlKind::Amount;
         self->amountAxis=0;
-        self->startValue = self->owner->read()[id];
-        self->owner->begin(id);
+        self->startValue = self->manualValue(id);
+        self->beginManual(id);
         SetCapture(w);
         return 0;
       }
@@ -974,8 +1163,13 @@ struct Editor::Impl {
     }
     case WM_RBUTTONUP:
       if(!self->aboutOpen && !self->modalActive && self->drag<0 && self->pendingMatrixMenu<0 && IsWindowEnabled(w)) {
-        const auto *c=self->controlAt(self->unscaled(GET_X_LPARAM(lp)),self->unscaled(GET_Y_LPARAM(lp))-48);
-        if(c&&(c->kind==ControlKind::Selector||c->kind==ControlKind::Toggle)&&!isDropdown(*c,self->owner->read())) {
+        int x=self->unscaled(GET_X_LPARAM(lp)),y=self->unscaled(GET_Y_LPARAM(lp))-48;
+        if(self->vcoAction(x,y,0,true)){
+          self->pressedParam=-1;if(GetCapture()==w)ReleaseCapture();InvalidateRect(w,nullptr,FALSE);return 0;
+        }
+        if(self->lfoTab(x,y)>=0)return 0;
+        const auto *c=self->controlAt(x,y);
+        if(c&&(c->kind==ControlKind::Selector||c->kind==ControlKind::Toggle)) {
           self->select(*c,-1);InvalidateRect(w,nullptr,FALSE);return 0;
         }
         self->sectionMenu(GET_X_LPARAM(lp),GET_Y_LPARAM(lp));
@@ -1001,10 +1195,17 @@ struct Editor::Impl {
         // Imported/state/automation values and Shift fine edits remain continuous.
         if ((self->drag == 0 || self->drag == 2) && !(wp & MK_SHIFT))
           value = std::round(value * 48.0) / 48.0;
-        self->edit(self->drag, value);
+        self->editManual(self->drag, value);
       }
       return 0;
     case WM_LBUTTONUP:
+      if(self->pendingVcoTableMenu>=0){
+        int o=self->pendingVcoTableMenu;self->pendingVcoTableMenu=-1;
+        if(GetCapture()==w)ReleaseCapture();
+        int x=self->unscaled(GET_X_LPARAM(lp)),y=self->unscaled(GET_Y_LPARAM(lp))-48;
+        if(self->vcoTableAt(x,y)==o)self->vcoAction(x,y,0);
+        return 0;
+      }
       if(self->pendingMatrixMenu>=0) {
         int id=self->pendingMatrixMenu;self->pendingMatrixMenu=-1;
         if(GetCapture()==w)ReleaseCapture();
@@ -1012,18 +1213,18 @@ struct Editor::Impl {
         if(c&&c->id==id)self->select(*c);return 0;
       }
       if(self->pressedParam>=0){self->pressedParam=-1;if(GetCapture()==w)ReleaseCapture();InvalidateRect(w,nullptr,FALSE);}
-      if(self->pressedAction==-3){self->pressedAction=0;ReleaseCapture();InvalidateRect(w,nullptr,FALSE);}
+      if(self->pressedAction==-3||self->pressedAction==-4){self->pressedAction=0;ReleaseCapture();InvalidateRect(w,nullptr,FALSE);}
       if (self->drag >= 0) {
-        self->owner->end(self->drag);
+        self->endManual(self->drag);
         self->drag = -100;
         ReleaseCapture();
       }
       return 0;
     case WM_CAPTURECHANGED:
-      self->pendingMatrixMenu=-1;self->pressedParam=-1;self->swallowLeftRelease=false;
-      if(self->pressedAction==-3){self->pressedAction=0;InvalidateRect(w,nullptr,FALSE);}
+      self->pendingMatrixMenu=-1;self->pendingVcoTableMenu=-1;self->pressedParam=-1;self->swallowLeftRelease=false;
+      if(self->pressedAction==-3||self->pressedAction==-4){self->pressedAction=0;InvalidateRect(w,nullptr,FALSE);}
       if (self->drag >= 0) {
-        self->owner->end(self->drag);
+        self->endManual(self->drag);
         self->drag = -100;
       }
       return 0;
@@ -1034,35 +1235,43 @@ struct Editor::Impl {
     case WM_MOUSEWHEEL: {
       if (self->aboutOpen)
         return 0;
+      const int wheelDelta=GET_WHEEL_DELTA_WPARAM(wp),selectorStep=selectorWheelStep(wheelDelta);
+      if(!wheelDelta)return 0;
       POINT pt{GET_X_LPARAM(lp), GET_Y_LPARAM(lp)};
       ScreenToClient(w, &pt);
-      int id = self->hit(int(pt.x / self->scale), int(pt.y / self->scale) - 48);
+      if(self->vcoAction(self->unscaled(pt.x),self->unscaled(pt.y)-48,selectorStep)){InvalidateRect(w,nullptr,FALSE);return 0;}
+      int id = self->hit(self->unscaled(pt.x), self->unscaled(pt.y) - 48);
       if (id >= 0) {
+        if(features::isFeatureSelector(id)){const auto*c=self->controlAt(self->unscaled(pt.x),self->unscaled(pt.y)-48);self->featureSelect(*c,selectorStep,true);InvalidateRect(w,nullptr,FALSE);return 0;}
+        if(id==Voices){auto state=self->owner->read();if(selectorStep)self->chooseVoices(std::clamp(voiceChoice(state)+selectorStep,0,6));return 0;}
         if(lfoBase(id)==26){
-          const auto *control=self->controlAt(int(pt.x/self->scale),int(pt.y/self->scale)-48);
+          const auto *control=self->controlAt(self->unscaled(pt.x),self->unscaled(pt.y)-48);
           auto state=self->owner->read();int delta=GET_WHEEL_DELTA_WPARAM(wp);
-          if(delta)self->chooseLfoShape(id,std::clamp(self->lfoShapeIndex(id,state)+(delta>0?1:-1),0,selectorCount(*control,state)-1));
+          if(delta)self->chooseLfoShape(id,std::clamp(self->lfoShapeIndex(id,state)+selectorStep,0,selectorCount(*control,state)-1));
           return 0;
         }
         if(matrixSource(id)){
-          auto state=self->owner->read();int slot=matrixSlot(id),position=std::clamp(sourceMenu::position(effectiveSource(state,slot))+(GET_WHEEL_DELTA_WPARAM(wp)>0?1:-1),0,SourceCount-1),next=sourceMenu::identity(position);
+          auto state=self->owner->read();int slot=matrixSlot(id),position=std::clamp(sourceMenu::position(effectiveSource(state,slot))+selectorStep,0,SourceCount-1),next=sourceMenu::identity(position);
           auto change=[&](int p,double v){self->owner->begin(p);self->edit(p,v);self->owner->end(p);};
           if(next<LegacySourceCount){change(SourceExtensionFirst+slot,0);change(id,next/10.);}else change(SourceExtensionFirst+slot,(next-10)/3.);return 0;
         }
-        if(legacyDestination(id)) {
-          auto state=self->owner->read();int slot=(id-MatrixFirst)/3;
-          int next=std::clamp(effectiveDestination(state,slot)+(GET_WHEEL_DELTA_WPARAM(wp)>0?1:-1),0,DestinationCount-1);
-          int appended=DetuneRouteFirst+slot;self->owner->begin(appended);self->edit(appended,next==EstablishedDestinationCount?1.:0.);self->owner->end(appended);if(next==EstablishedDestinationCount)return 0;
-          int target=next<LegacyDestinationCount?id:ExpandedDestinationFirst+slot;
-          if(target==id){int extended=ExpandedDestinationFirst+slot;self->owner->begin(extended);self->edit(extended,0.);self->owner->end(extended);}
-          self->owner->begin(target);self->edit(target,next<LegacyDestinationCount?next/double(LegacyDestinationCount-1):(next+1)/double(EstablishedDestinationCount));self->owner->end(target);return 0;
+        if(matrixDestination(id)){
+          auto state=self->owner->read();int slot=matrixSlot(id),next=destinationMenu::step(routeDestination(state,slot),selectorStep);
+          auto change=[&](int p,double v){self->owner->begin(p);self->edit(p,v);self->owner->end(p);};
+          change(BFilterRouteFirst+slot,next>=44?(next-43)/2.:0.);if(next>=44)return 0;
+          change(PositionRouteFirst+slot,next>=42?(next-41)/2.:0.);if(next>=42)return 0;
+          if(slot>=6){change(id,next/41.);return 0;}
+          change(DetuneRouteFirst+slot,next==41?1.:0.);if(next==41)return 0;
+          if(next<LegacyDestinationCount){change(ExpandedDestinationFirst+slot,0);change(id,next/double(LegacyDestinationCount-1));}else change(ExpandedDestinationFirst+slot,(next+1)/41.);return 0;
         }
-        self->owner->begin(id);
-        double value=self->owner->read()[id],direction=GET_WHEEL_DELTA_WPARAM(wp)/double(WHEEL_DELTA);
+        self->beginManual(id);
+        double value=self->manualValue(id),direction=GET_WHEEL_DELTA_WPARAM(wp)/double(WHEEL_DELTA);
+        const auto*wheelControl=self->controlAt(self->unscaled(pt.x),self->unscaled(pt.y)-48);
+        if(wheelControl&&(wheelControl->kind==ControlKind::Selector||wheelControl->kind==ControlKind::Toggle))direction=-direction;
         if((id==0||id==2)&&!(GET_KEYSTATE_WPARAM(wp)&MK_SHIFT)){if(self->wheelPitchId!=id){self->wheelPitchId=id;self->wheelPitchRemainder=0;}self->wheelPitchRemainder+=GET_WHEEL_DELTA_WPARAM(wp);int ticks=self->wheelPitchRemainder/WHEEL_DELTA;self->wheelPitchRemainder%=WHEEL_DELTA;if(ticks)value=std::clamp(std::round(value*48-24)+ticks,-24.,24.)/48+.5;}
         else value+=direction*(stepsFor(id)?1./stepsFor(id):(GET_KEYSTATE_WPARAM(wp)&MK_SHIFT)?.001:.01);
-        self->edit(id,value);
-        self->owner->end(id);
+        self->editManual(id,value);
+        self->endManual(id);
       }
       return 0;
     }
@@ -1070,17 +1279,19 @@ struct Editor::Impl {
       // CS_DBLCLKS replaces the second DOWN of two rapid physical clicks.
       // Discrete actions still activate once per click; continuous controls
       // retain their existing double-click-to-default gesture.
-      int x=int(GET_X_LPARAM(lp)/self->scale),y=int(GET_Y_LPARAM(lp)/self->scale)-48;
+      int x=self->unscaled(GET_X_LPARAM(lp)),y=self->unscaled(GET_Y_LPARAM(lp))-48;
+      if(!self->aboutOpen&&self->deferVcoTableMenu(x,y))return 0;
+      if(!self->aboutOpen&&self->vcoAction(x,y,0)){InvalidateRect(w,nullptr,FALSE);return 0;}
       if(!self->aboutOpen&&self->lfoTab(x,y)>=0){self->selectLfo(self->lfoTab(x,y));return 0;}
       const auto* control=self->controlAt(x,y);
-      if(self->aboutOpen||y<0||(control&&(control->kind==ControlKind::Selector||control->kind==ControlKind::Toggle)))
+      if(self->aboutOpen||y<0||(x>=ProtectX&&x<ProtectX+ProtectW&&y>=ProtectY&&y<ProtectY+ProtectH)||(control&&(control->kind==ControlKind::Selector||control->kind==ControlKind::Toggle)))
         return proc(w,WM_LBUTTONDOWN,wp,lp);
       int id =
-          self->hit(int(GET_X_LPARAM(lp) / self->scale), int(GET_Y_LPARAM(lp) / self->scale) - 48);
+          self->hit(self->unscaled(GET_X_LPARAM(lp)), self->unscaled(GET_Y_LPARAM(lp)) - 48);
       if (id >= 0) {
-        self->owner->begin(id);
-        self->edit(id, defaults()[id]);
-        self->owner->end(id);
+        self->beginManual(id);
+        self->editManual(id,id==DistDrive?newInstanceState()[id]*.5:newInstanceState()[id]);
+        self->endManual(id);
         if(id==26) {
           self->owner->begin(LfoRandom);self->edit(LfoRandom,0);self->owner->end(LfoRandom);
         }
@@ -1108,6 +1319,7 @@ HWND Editor::open(HWND parent, int w, int h) {
   cls.hCursor = LoadCursor(nullptr, IDC_ARROW);
   cls.style = CS_DBLCLKS;
   RegisterClassW(&cls);
+  impl->refreshControls();
   impl->width = w;
   impl->height = h;
   impl->prepare();
@@ -1118,6 +1330,7 @@ HWND Editor::open(HWND parent, int w, int h) {
   return hwnd;
 }
 void Editor::close() {
+  impl->programmer.reset();
   impl->aboutOpen = false;
   impl->highlightedRoutes=0;
   if (impl->window) {
@@ -1145,6 +1358,7 @@ void Editor::resize(int w, int h) {
   }
 }
 bool Editor::snapshot(const wchar_t *path, int percent, bool dithering, bool about) {
+  impl->refreshControls();
   if(impl->dithering!=dithering){impl->dithering=dithering;impl->background.clear();}
   resize(NativeWidth * percent / 100, NativeHeight * percent / 100);
   const bool previousAbout = impl->aboutOpen;
@@ -1161,6 +1375,12 @@ bool Editor::snapshot(const wchar_t *path, int percent, bool dithering, bool abo
     if (std::wcscmp(codecs[i].MimeType, L"image/png") == 0)
       return b.Save(path, &codecs[i].Clsid, nullptr) == Gdiplus::Ok;
   return false;
+}
+bool Editor::snapshotProgrammer(const wchar_t*path,int oscillator){
+  if(!impl->programmer)impl->programmer=std::make_unique<WaveProgrammer>(*this);
+  impl->programmer->open(impl->window,oscillator,false);HBITMAP bitmap=impl->programmer->capture();
+  bool ok=false;{Gdiplus::Bitmap image(bitmap,nullptr);UINT count=0,size=0;Gdiplus::GetImageEncodersSize(&count,&size);std::vector<uint8_t>bytes(size);auto codecs=reinterpret_cast<Gdiplus::ImageCodecInfo*>(bytes.data());Gdiplus::GetImageEncoders(count,size,codecs);for(UINT n=0;n<count;++n)if(!std::wcscmp(codecs[n].MimeType,L"image/png"))ok=image.Save(path,&codecs[n].Clsid,nullptr)==Gdiplus::Ok;}
+  DeleteObject(bitmap);return ok;
 }
 } // namespace xs
 

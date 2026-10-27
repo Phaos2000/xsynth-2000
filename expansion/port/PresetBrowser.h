@@ -4,6 +4,7 @@
 #include "InitState.h"
 #include <string>
 namespace xs::factory {
+inline State presetState(int index){auto s=Presets[index].state;for(int i=PreDualCount;i<xs::Count;++i)s[i]=extraDefault(i);return s;}
 inline bool sameSound(const State &a, const State &b) {
   for (int id = 0; id < xs::Count; ++id) {
     if (id == 30 || id == 31 || id == AllNotesOff || id == AllSoundsOff || id == Pressure)
@@ -31,7 +32,7 @@ public:
     if(index==Init){selected=Init;baseline=initState();external.clear();return;}
     if (index >= 0 && index < Count) {
       selected = index;
-      baseline = Presets[index].state;
+      baseline = presetState(index);
       external.clear();
     }
   }
@@ -44,13 +45,13 @@ public:
     if(selected==-1&&external.empty()&&sameSound(state,initState()))select(Init);
     if (selected == -1 && external.empty())
       for (int i = 0; i < Count; ++i)
-        if (sameSound(state, Presets[i].state)) {
+        if (sameSound(state, presetState(i))) {
           select(i);
           break;
         }
     std::string name = selected==Init?"INIT":selected >= 0                  ? Presets[selected].name
                        : !external.empty()            ? external
-                       : sameSound(state, defaults()) ? "DEFAULT"
+                       : (sameSound(state, defaults()) || sameSound(state, newInstanceState())) ? "DEFAULT"
                                                       : "CUSTOM";
     if ((selected != -1 || !external.empty()) && !sameSound(state, baseline))
       name += " *";

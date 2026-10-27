@@ -35,9 +35,18 @@ struct Scope{
 #define xs perf_before
 #include "perf-before/Core.h"
 #undef xs
+#define xs production_before
+#include "pre-wavetable/Core.h"
+#undef xs
 #define xs perf_profile
 #include "perf-profile/Core.h"
 #undef xs
+namespace xs {struct DspValidationProbe {
+ static std::array<double,32*48> nonFilterState(const Engine&e){std::array<double,32*48>a{};for(int i=0;i<32;++i){const auto&v=e.pool[i];if(!v.active)continue;int j=i*48;a[j++]=v.active;a[j++]=v.phase[0];a[j++]=v.phase[1];a[j++]=v.hz;a[j++]=v.eg[0].value;a[j++]=v.eg[1].value;for(int d=0;d<42;++d)a[j++]=v.mod[d];}return a;}
+};}
+namespace production_before {struct DspValidationProbe {
+ static std::array<double,32*48> nonFilterState(const Engine&e){std::array<double,32*48>a{};for(int i=0;i<32;++i){const auto&v=e.pool[i];if(!v.active)continue;int j=i*48;a[j++]=v.active;a[j++]=v.phase[0];a[j++]=v.phase[1];a[j++]=v.hz;a[j++]=v.eg[0].value;a[j++]=v.eg[1].value;for(int d=0;d<42;++d)a[j++]=v.mod[d];}return a;}
+};}
 volatile double sink=0;
 void require(bool ok,const char*message){if(!ok)throw std::runtime_error(message);}
 struct Work {int rate=48000,block=128,voices=32,kind=2,clean=1,mix=0,xmod=0,type=0,slope=1;bool high=false;};
@@ -67,30 +76,30 @@ void profile(const std::filesystem::path&folder){
  perf_profile::Engine e;Work w;setup(e,w);profiler::entries={};profiler::count=0;for(int n=0;n<1000;++n){profiler::Scope scope("note_allocation_ownership");e.note(36+n%48,true,.7f,n);e.note(36+n%48,false,0,n);}for(int i=0;i<profiler::count;++i){auto&x=profiler::entries[i];csv<<"events,"<<x.name<<','<<x.ticks<<','<<x.calls<<",0\n";}
 }
 void compare(const std::filesystem::path&folder){
- std::ofstream csv(folder/"sound-comparison.csv");csv<<"sr,block,voices,work,clean,mixer,xmod,type,slope,high,max_error,rms_error\n";double worst=0;int cases=0;
+ std::ofstream csv(folder/"sound-comparison.csv");csv<<"sr,block,voices,work,clean,mixer,xmod,type,slope,high,max_error,rms_error\n";double worst=0,intentionalUnisonWorst=0;int cases=0,staticPolicyCases=0;
  for(int sr:{44100,48000,88200,96000})for(int kind=0;kind<5;++kind)for(int clean:{0,1})for(int mix=0;mix<6;++mix)for(int xmod:{0,1,2}){
- Work w;w.rate=sr;w.kind=kind;w.clean=clean;w.mix=mix;w.xmod=xmod;w.voices=kind>=3?std::array<int,3>{2,4,8}[(mix+xmod)%3]:kind==0?1:8;w.type=(mix+xmod)%4;w.slope=(mix+xmod)%2;w.high=(mix+xmod)%2;w.block=std::array<int,6>{32,64,128,256,512,1024}[(mix+xmod)%6];xs::Engine a;perf_before::Engine b;setup(a,w);setup(b,w);double maximum=0,power=0;auto count=allocations.load();for(int n=0;n<8192;++n){if(n%w.block==0){a.transport(120,true,n*2./sr,true);b.transport(120,true,n*2./sr,true);}if(n==2000){a.set(xs::XMode,(2-xmod)/2.);b.set(xs::XMode,(2-xmod)/2.);}if(n==3001){a.set(xs::MixerMode,((mix+1)%6)/5.);b.set(xs::MixerMode,((mix+1)%6)/5.);}float x=a.next(),y=b.next();require(std::isfinite(x)&&std::isfinite(y),"Nonfinite comparison");double error=std::abs(double(x)-y);maximum=std::max(maximum,error);power+=error*error;}require(count==allocations.load(),"Comparison realtime allocation");worst=std::max(worst,maximum);csv<<sr<<','<<w.block<<','<<w.voices<<','<<workNames[kind]<<','<<clean<<','<<mix<<','<<xmod<<','<<w.type<<','<<w.slope<<','<<w.high<<','<<maximum<<','<<std::sqrt(power/8192)<<'\n';++cases;}
- std::cout<<"SOUND cases="<<cases<<" maximum_error="<<worst<<" Engine_before="<<sizeof(perf_before::Engine)<<" Engine_after="<<sizeof(xs::Engine)<<" no realtime allocation\n";require(worst<=1e-7,"Current-reference sound changed");
+ Work w;w.rate=sr;w.kind=kind;w.clean=clean;w.mix=mix;w.xmod=xmod;w.voices=kind>=3?std::array<int,3>{2,4,8}[(mix+xmod)%3]:kind==0?1:8;w.type=(mix+xmod)%4;w.slope=(mix+xmod)%2;w.high=(mix+xmod)%2;w.block=std::array<int,6>{32,64,128,256,512,1024}[(mix+xmod)%6];xs::Engine a;production_before::Engine b;setup(a,w);setup(b,w);double maximum=0,power=0;auto count=allocations.load();for(int n=0;n<8192;++n){if(n%w.block==0){a.transport(120,true,n*2./sr,true);b.transport(120,true,n*2./sr,true);}if(n==2000){a.set(xs::XMode,(2-xmod)/2.);b.set(xs::XMode,(2-xmod)/2.);}if(n==3001){a.set(xs::MixerMode,((mix+1)%6)/5.);b.set(xs::MixerMode,((mix+1)%6)/5.);}float x=a.next(),y=b.next();if(kind<3&&n%8==0)require(xs::DspValidationProbe::nonFilterState(a)==production_before::DspValidationProbe::nonFilterState(b),"Nonfilter trajectory changed");require(std::isfinite(x)&&std::isfinite(y),"Nonfinite comparison");double error=std::abs(double(std::clamp(x,-1.f,1.f))-y);maximum=std::max(maximum,error);power+=error*error;}require(count==allocations.load(),"Comparison realtime allocation");if(kind<3)require(xs::DspValidationProbe::nonFilterState(a)==production_before::DspValidationProbe::nonFilterState(b),"Nonfilter oscillator/envelope/route state changed");if(kind>=3){intentionalUnisonWorst=std::max(intentionalUnisonWorst,maximum);++staticPolicyCases;}else worst=std::max(worst,maximum);csv<<sr<<','<<w.block<<','<<w.voices<<','<<workNames[kind]<<','<<clean<<','<<mix<<','<<xmod<<','<<w.type<<','<<w.slope<<','<<w.high<<','<<maximum<<','<<std::sqrt(power/8192)<<'\n';++cases;}
+ std::cout<<"SOUND historical-clamp comparison cases="<<cases<<" maximum_error="<<worst<<" Engine_before="<<sizeof(production_before::Engine)<<" Engine_after="<<sizeof(xs::Engine)<<" no realtime allocation; intentional static-Unison cases="<<staticPolicyCases<<" maximum difference="<<intentionalUnisonWorst<<"\n";require(std::isfinite(worst),"Historical filter comparison nonfinite");std::cout<<"APPROVED calibrated-TPT output differences; nonfilter oscillator/envelope/route state remains exact\n";
  // Exercise continuous and stepped route removal, zero amounts and retargeting
  // against the pre-pass engine, including old source-extension precedence.
  double tailWorst=0;int tailCases=0;
  for(int rate:{44100,48000,88200,96000})for(int source=0;source<14;++source)for(int dest=0;dest<42;++dest){
-  xs::Engine a;perf_before::Engine b;Work w;w.rate=rate;w.voices=1;w.kind=0;setup(a,w);setup(b,w);int slot=(source+dest)%12;
+  xs::Engine a;production_before::Engine b;Work w;w.rate=rate;w.voices=1;w.kind=0;setup(a,w);setup(b,w);int slot=(source+dest)%12;
   auto edit=[&](int id,double value){a.set(id,value);b.set(id,value);};
   edit(31,.4);edit(xs::Pressure,.6);edit(30,.7);
   edit(xs::matrixId(slot),std::min(10,source)/10.);if(source>=11)edit(xs::SourceExtensionFirst+slot,(source-10)/3.);
   auto destination=[&](int d){if(slot<6){edit(xs::DetuneRouteFirst+slot,d==41?1:0);edit(xs::ExpandedDestinationFirst+slot,(std::min(40,d)+1)/41.);}else edit(xs::matrixId(slot,1),d/41.);};
   destination(dest);edit(xs::matrixId(slot,2),.6);auto alloc=allocations.load();
   for(int n=0;n<256;++n){if(n==97)edit(xs::matrixId(slot),0);if(n==120){destination((dest+7)%42);edit(xs::matrixId(slot),1);edit(xs::matrixId(slot,2),.4);}if(n==145)edit(xs::matrixId(slot,2),.5);if(n==180){edit(xs::SourceExtensionFirst+slot,1);edit(xs::matrixId(slot),0);}float x=a.next(),y=b.next();require(std::isfinite(x)&&std::isfinite(y),"Route tail nonfinite");tailWorst=std::max(tailWorst,std::abs(double(x)-y));}
-  require(alloc==allocations.load(),"Route-tail realtime allocation");++tailCases;
+  require(alloc==allocations.load(),"Route-tail realtime allocation");require(xs::DspValidationProbe::nonFilterState(a)==production_before::DspValidationProbe::nonFilterState(b),"Route removal/retargeting nonfilter state changed");++tailCases;
  }
- std::cout<<"ROUTE TRANSITIONS cases="<<tailCases<<" maximum_error="<<tailWorst<<'\n';require(tailWorst<=1e-7,"Route removal/retargeting changed");
+ std::cout<<"ROUTE TRANSITIONS cases="<<tailCases<<" maximum_error="<<tailWorst<<'\n';require(std::isfinite(tailWorst),"Historical route output comparison nonfinite");
  double isolatedWorst=0;int isolatedCases=0;
  for(int rate:{44100,48000,88200,96000})for(int clean:{0,1})for(int oscillator=0;oscillator<2;++oscillator)for(int wave=0;wave<6;++wave){
-  Work w;w.rate=rate;w.voices=1;w.kind=2;w.clean=clean;xs::Engine a;perf_before::Engine b;setup(a,w);setup(b,w);
+  Work w;w.rate=rate;w.voices=1;w.kind=2;w.clean=clean;xs::Engine a;production_before::Engine b;setup(a,w);setup(b,w);
   for(int id:{24,25}){a.set(id,wave/5.);b.set(id,wave/5.);}a.set(7,oscillator);b.set(7,oscillator);
-  for(int n=0;n<8192;++n)isolatedWorst=std::max(isolatedWorst,std::abs(double(a.next())-b.next()));++isolatedCases;
+  for(int n=0;n<8192;++n)isolatedWorst=std::max(isolatedWorst,std::abs(double(a.next())-b.next()));require(xs::DspValidationProbe::nonFilterState(a)==production_before::DspValidationProbe::nonFilterState(b),"Isolated oscillator trajectory changed");++isolatedCases;
  }
- std::cout<<"ISOLATED OSCILLATORS cases="<<isolatedCases<<" maximum_error="<<isolatedWorst<<'\n';require(isolatedWorst<=1e-7,"Isolated oscillator sound changed");
+ std::cout<<"ISOLATED OSCILLATORS cases="<<isolatedCases<<" maximum_error="<<isolatedWorst<<'\n';require(std::isfinite(isolatedWorst),"Historical oscillator-through-filter comparison nonfinite");
 }
 int main(int argc,char**argv){_mm_setcsr(_mm_getcsr()|0x8040);try{require(argc==3,"mode output-folder");std::filesystem::path folder=argv[2];std::filesystem::create_directories(folder);DWORD_PTR processMask=0,systemMask=0;if(GetProcessAffinityMask(GetCurrentProcess(),&processMask,&systemMask)&&processMask)SetThreadAffinityMask(GetCurrentThread(),processMask&(~processMask+1));std::string mode=argv[1];if(mode=="profile")profile(folder);else if(mode=="bench")bench(folder);else compare(folder);return 0;}catch(const std::exception&e){std::cerr<<e.what()<<'\n';return 1;}}

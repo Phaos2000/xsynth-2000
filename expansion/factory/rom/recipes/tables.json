@@ -1,0 +1,1648 @@
+{
+  "recipes": [
+    {
+      "cycle_length": 128,
+      "dc_policy": "subtract high-resolution frame mean before ONE table-global gain; no decoded PCM8 DC correction",
+      "family": "SPECTRAL",
+      "frames": 16,
+      "id": 0,
+      "label": "SPECTRA 01",
+      "operation": "spectral",
+      "parameters": {
+        "cutoff": [
+          "2",
+          "24"
+        ],
+        "harmonics": 48,
+        "noise_seed": 5243
+      },
+      "peak_target_s16": 28000,
+      "phase_seed": 0,
+      "progression": "dark -> open spectral bandwidth",
+      "revision": 1,
+      "rootBin": 1
+    },
+    {
+      "cycle_length": 128,
+      "dc_policy": "subtract high-resolution frame mean before ONE table-global gain; no decoded PCM8 DC correction",
+      "family": "SPARSE",
+      "frames": 16,
+      "id": 1,
+      "label": "GAPS 01",
+      "operation": "gaps",
+      "parameters": {
+        "harmonics": 48,
+        "noise_seed": 5340,
+        "populations": [
+          [
+            1,
+            [
+              0
+            ]
+          ],
+          [
+            4,
+            [
+              0,
+              1
+            ]
+          ],
+          [
+            7,
+            [
+              0,
+              1
+            ]
+          ],
+          [
+            11,
+            [
+              0,
+              1
+            ]
+          ]
+        ]
+      },
+      "peak_target_s16": 28000,
+      "phase_seed": 0,
+      "progression": "dense -> separated populations -> wide gaps",
+      "revision": 1,
+      "rootBin": 1
+    },
+    {
+      "cycle_length": 64,
+      "dc_policy": "subtract high-resolution frame mean before ONE table-global gain; no decoded PCM8 DC correction",
+      "family": "PULSE",
+      "frames": 16,
+      "id": 2,
+      "label": "WIDTH 01",
+      "operation": "pulse",
+      "parameters": {
+        "duty": [
+          "0.50",
+          "0.08"
+        ],
+        "noise_seed": 5437
+      },
+      "peak_target_s16": 28000,
+      "phase_seed": 0,
+      "progression": "symmetric -> narrow asymmetric pulse",
+      "revision": 1,
+      "rootBin": 1
+    },
+    {
+      "cycle_length": 256,
+      "dc_policy": "subtract high-resolution frame mean before ONE table-global gain; no decoded PCM8 DC correction",
+      "family": "FORMANT",
+      "frames": 16,
+      "id": 3,
+      "label": "VOWEL 01",
+      "operation": "vowel",
+      "parameters": {
+        "centers": [
+          [
+            3,
+            8,
+            15
+          ],
+          [
+            5,
+            12,
+            23
+          ],
+          [
+            8,
+            17,
+            29
+          ]
+        ],
+        "harmonics": 80,
+        "noise_seed": 5534,
+        "widths": [
+          2,
+          3,
+          4
+        ]
+      },
+      "peak_target_s16": 28000,
+      "phase_seed": 0,
+      "progression": "three progressively moving broad peaks",
+      "revision": 1,
+      "rootBin": 1
+    },
+    {
+      "cycle_length": 64,
+      "dc_policy": "subtract high-resolution frame mean before ONE table-global gain; no decoded PCM8 DC correction",
+      "family": "DIGITAL",
+      "frames": 16,
+      "id": 4,
+      "label": "STAIRS 01",
+      "operation": "stairs",
+      "parameters": {
+        "amplitude_levels": [
+          "128",
+          "8"
+        ],
+        "noise_seed": 5631,
+        "phase_grid": [
+          "64",
+          "8"
+        ]
+      },
+      "peak_target_s16": 28000,
+      "phase_seed": 0,
+      "progression": "smooth mixture -> coarse phase/amplitude grids",
+      "revision": 1,
+      "rootBin": 1
+    },
+    {
+      "cycle_length": 32,
+      "dc_policy": "subtract high-resolution frame mean before ONE table-global gain; no decoded PCM8 DC correction",
+      "family": "LOGIC",
+      "frames": 16,
+      "id": 5,
+      "label": "WORDS 01",
+      "operation": "logic",
+      "parameters": {
+        "masks": [
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            5,
+            12,
+            15
+          ],
+          [
+            13,
+            21,
+            23
+          ],
+          [
+            19,
+            11,
+            31
+          ]
+        ],
+        "noise_seed": 5728
+      },
+      "peak_target_s16": 28000,
+      "phase_seed": 0,
+      "progression": "sparse -> mixed -> dense phase-counter words",
+      "revision": 1,
+      "rootBin": 1
+    },
+    {
+      "cycle_length": 128,
+      "dc_policy": "subtract high-resolution frame mean before ONE table-global gain; no decoded PCM8 DC correction",
+      "family": "FOLD",
+      "frames": 16,
+      "id": 6,
+      "label": "FOLDS 01",
+      "operation": "fold",
+      "parameters": {
+        "asymmetry": [
+          "0",
+          "0.25"
+        ],
+        "drive": [
+          "1",
+          "5"
+        ],
+        "noise_seed": 5825
+      },
+      "peak_target_s16": 28000,
+      "phase_seed": 0,
+      "progression": "simple -> increasingly folded and asymmetric",
+      "revision": 1,
+      "rootBin": 1
+    },
+    {
+      "cycle_length": 128,
+      "dc_policy": "subtract high-resolution frame mean before ONE table-global gain; no decoded PCM8 DC correction",
+      "family": "COMB",
+      "frames": 16,
+      "id": 7,
+      "label": "NOTCHES 01",
+      "operation": "comb",
+      "parameters": {
+        "harmonics": 60,
+        "noise_seed": 5922,
+        "spacing": [
+          "0.03",
+          "0.30"
+        ]
+      },
+      "peak_target_s16": 28000,
+      "phase_seed": 0,
+      "progression": "progressively spreading spectral comb",
+      "revision": 1,
+      "rootBin": 1
+    },
+    {
+      "cycle_length": 128,
+      "dc_policy": "subtract high-resolution frame mean before ONE table-global gain; no decoded PCM8 DC correction",
+      "family": "INST HORN",
+      "frames": 16,
+      "id": 8,
+      "label": "HORN 01",
+      "operation": "horn",
+      "parameters": {
+        "harmonics": 55,
+        "noise_seed": 6019
+      },
+      "peak_target_s16": 28000,
+      "phase_seed": 0,
+      "progression": "dark -> open -> nasal -> bright",
+      "revision": 1,
+      "rootBin": 1
+    },
+    {
+      "cycle_length": 128,
+      "dc_policy": "subtract high-resolution frame mean before ONE table-global gain; no decoded PCM8 DC correction",
+      "family": "INST STRING",
+      "frames": 16,
+      "id": 9,
+      "label": "STRING 01",
+      "operation": "string",
+      "parameters": {
+        "body_centers": [
+          "6.5",
+          "17",
+          "37"
+        ],
+        "harmonics": 55,
+        "noise_seed": 6116
+      },
+      "peak_target_s16": 28000,
+      "phase_seed": 3,
+      "progression": "dark -> dense bowed -> bright wiry",
+      "revision": 2,
+      "rootBin": 1
+    },
+    {
+      "cycle_length": 128,
+      "dc_policy": "subtract high-resolution frame mean before ONE table-global gain; no decoded PCM8 DC correction",
+      "family": "INST GUITAR",
+      "frames": 16,
+      "id": 10,
+      "label": "PLUCK 01",
+      "operation": "pluck",
+      "parameters": {
+        "cutoff": [
+          "40",
+          "12"
+        ],
+        "harmonics": 55,
+        "noise_seed": 6213,
+        "pluck_point": [
+          "0.10",
+          "0.45"
+        ]
+      },
+      "peak_target_s16": 28000,
+      "phase_seed": 0,
+      "progression": "bridge-like -> hollow -> round body",
+      "revision": 1,
+      "rootBin": 1
+    },
+    {
+      "cycle_length": 128,
+      "dc_policy": "subtract high-resolution frame mean before ONE table-global gain; no decoded PCM8 DC correction",
+      "family": "INST FLUTE",
+      "frames": 16,
+      "id": 11,
+      "label": "FLUTE 01",
+      "operation": "flute",
+      "parameters": {
+        "harmonics": 48,
+        "noise_seed": 6310,
+        "second_gain": [
+          ".015",
+          ".50"
+        ],
+        "third_gain": [
+          ".005",
+          ".38"
+        ],
+        "upper_noise_gain": ".065"
+      },
+      "peak_target_s16": 28000,
+      "phase_seed": 0,
+      "progression": "pure -> complex -> breathier hollow",
+      "revision": 2,
+      "rootBin": 1
+    },
+    {
+      "cycle_length": 128,
+      "dc_policy": "subtract high-resolution frame mean before ONE table-global gain; no decoded PCM8 DC correction",
+      "family": "INST REED",
+      "frames": 16,
+      "id": 12,
+      "label": "REED 01",
+      "operation": "reed",
+      "parameters": {
+        "harmonics": 55,
+        "noise_seed": 6407
+      },
+      "peak_target_s16": 28000,
+      "phase_seed": 0,
+      "progression": "hollow -> nasal -> buzzy -> biting",
+      "revision": 1,
+      "rootBin": 1
+    },
+    {
+      "cycle_length": 256,
+      "dc_policy": "subtract high-resolution frame mean before ONE table-global gain; no decoded PCM8 DC correction",
+      "family": "INST METAL",
+      "frames": 16,
+      "id": 13,
+      "label": "METAL 01",
+      "operation": "metal",
+      "parameters": {
+        "noise_seed": 6504,
+        "partials": 23,
+        "stretch": [
+          "1.003",
+          "1.08"
+        ]
+      },
+      "peak_target_s16": 28000,
+      "phase_seed": 7,
+      "progression": "soft sparse -> irregular -> hard metallic",
+      "revision": 1,
+      "rootBin": 1
+    },
+    {
+      "cycle_length": 128,
+      "dc_policy": "subtract high-resolution frame mean before ONE table-global gain; no decoded PCM8 DC correction",
+      "family": "INST ORGAN",
+      "frames": 16,
+      "id": 14,
+      "label": "DRAWBAR 01",
+      "operation": "drawbar",
+      "parameters": {
+        "bins": [
+          1,
+          2,
+          3,
+          4,
+          6,
+          8,
+          12,
+          16
+        ],
+        "gains": [
+          [
+            "1",
+            ".15",
+            "0",
+            ".08",
+            "0",
+            "0",
+            "0",
+            "0"
+          ],
+          [
+            ".7",
+            ".05",
+            ".5",
+            ".05",
+            ".15",
+            "0",
+            ".08",
+            "0"
+          ],
+          [
+            ".7",
+            ".4",
+            ".2",
+            ".35",
+            ".3",
+            ".16",
+            ".15",
+            ".08"
+          ],
+          [
+            ".6",
+            ".55",
+            ".4",
+            ".5",
+            ".35",
+            ".4",
+            ".3",
+            ".25"
+          ]
+        ],
+        "noise_seed": 6601
+      },
+      "peak_target_s16": 28000,
+      "phase_seed": 0,
+      "progression": "muted -> hollow -> nasal full -> bright full",
+      "revision": 1,
+      "rootBin": 1
+    },
+    {
+      "cycle_length": 256,
+      "dc_policy": "subtract high-resolution frame mean before ONE table-global gain; no decoded PCM8 DC correction",
+      "family": "INST VOICE",
+      "frames": 16,
+      "id": 15,
+      "label": "CHOIR 01",
+      "operation": "voice",
+      "parameters": {
+        "harmonics": 75,
+        "noise_seed": 6698
+      },
+      "peak_target_s16": 28000,
+      "phase_seed": 0,
+      "progression": "closed -> open -> bright two-formant choir",
+      "revision": 1,
+      "rootBin": 1
+    },
+    {
+      "cycle_length": 64,
+      "dc_policy": "subtract high-resolution frame mean before ONE table-global gain; no decoded PCM8 DC correction",
+      "family": "INST BASS",
+      "frames": 16,
+      "id": 16,
+      "label": "BASS 01",
+      "operation": "bass",
+      "parameters": {
+        "harmonics": 31,
+        "noise_seed": 6795
+      },
+      "peak_target_s16": 28000,
+      "phase_seed": 0,
+      "progression": "round -> hollow -> rubbery -> hard digital",
+      "revision": 1,
+      "rootBin": 1
+    },
+    {
+      "cycle_length": 128,
+      "dc_policy": "subtract high-resolution frame mean before ONE table-global gain; no decoded PCM8 DC correction",
+      "family": "INST KEYS",
+      "frames": 16,
+      "id": 17,
+      "label": "KEYS 01",
+      "operation": "keys",
+      "parameters": {
+        "harmonics": 24,
+        "noise_seed": 6892,
+        "weights_end": {
+          "1": ".5",
+          "11": ".32",
+          "2": ".4",
+          "3": ".55",
+          "5": ".4",
+          "7": ".25"
+        },
+        "weights_start": {
+          "1": "1",
+          "11": ".005",
+          "2": ".35",
+          "3": ".08",
+          "5": ".03",
+          "7": ".01"
+        }
+      },
+      "peak_target_s16": 28000,
+      "phase_seed": 11,
+      "progression": "soft key -> glassy -> tine-like -> hard",
+      "revision": 1,
+      "rootBin": 1
+    },
+    {
+      "cycle_length": 256,
+      "dc_policy": "subtract high-resolution frame mean before ONE table-global gain; no decoded PCM8 DC correction",
+      "family": "PAD",
+      "frames": 16,
+      "id": 18,
+      "label": "AIR",
+      "operation": "air",
+      "parameters": {
+        "harmonics": 112,
+        "noise_seed": 6989
+      },
+      "peak_target_s16": 28000,
+      "phase_seed": 0,
+      "progression": "thin scaffold -> broader upper bands -> diffuse air",
+      "revision": 1,
+      "rootBin": 1
+    },
+    {
+      "cycle_length": 256,
+      "dc_policy": "subtract high-resolution frame mean before ONE table-global gain; no decoded PCM8 DC correction",
+      "family": "PAD",
+      "frames": 16,
+      "id": 19,
+      "label": "DREAM",
+      "operation": "dream",
+      "parameters": {
+        "harmonics": 100,
+        "noise_seed": 7086
+      },
+      "peak_target_s16": 28000,
+      "phase_seed": 0,
+      "progression": "warm bed -> open islands -> glassy luminous",
+      "revision": 1,
+      "rootBin": 1
+    },
+    {
+      "cycle_length": 256,
+      "dc_policy": "subtract high-resolution frame mean before ONE table-global gain; no decoded PCM8 DC correction",
+      "family": "PAD",
+      "frames": 16,
+      "id": 20,
+      "label": "ETHEREAL",
+      "operation": "ethereal_v2",
+      "parameters": {
+        "candidate": "A",
+        "approved_pcm8_sha256": "857853dd7ca205ab4d9f1dc105aa41af60cfb1d70d048da0b570133fefa3a83c"
+      },
+      "peak_target_s16": 28000,
+      "phase_seed": 0,
+      "progression": "warm anchored body -> exchanging harmonic halo -> open ethereal motion",
+      "revision": 2,
+      "rootBin": 1
+    },
+    {
+      "cycle_length": 128,
+      "dc_policy": "subtract high-resolution frame mean before ONE table-global gain; no decoded PCM8 DC correction",
+      "family": "PAD",
+      "frames": 16,
+      "id": 21,
+      "label": "AMBIENT",
+      "operation": "ambient",
+      "parameters": {
+        "harmonics": 60,
+        "noise_seed": 7280
+      },
+      "peak_target_s16": 28000,
+      "phase_seed": 0,
+      "progression": "dark broad bed -> exchanging notches -> diffuse",
+      "revision": 1,
+      "rootBin": 1
+    },
+    {
+      "cycle_length": 64,
+      "dc_policy": "subtract high-resolution frame mean before ONE table-global gain; no decoded PCM8 DC correction",
+      "family": "PAD",
+      "frames": 16,
+      "id": 22,
+      "label": "GRAIN",
+      "operation": "grain",
+      "parameters": {
+        "amplitude_levels": [
+          "64",
+          "8"
+        ],
+        "noise_seed": 7377,
+        "phase_grid": [
+          "64",
+          "8"
+        ]
+      },
+      "peak_target_s16": 28000,
+      "phase_seed": 0,
+      "progression": "multiband -> grainy -> coarse -> textured",
+      "revision": 2,
+      "rootBin": 1
+    },
+    {
+      "cycle_length": 256,
+      "dc_policy": "subtract high-resolution frame mean before ONE table-global gain; no decoded PCM8 DC correction",
+      "family": "PAD",
+      "frames": 16,
+      "id": 23,
+      "label": "EPIC",
+      "operation": "epic",
+      "parameters": {
+        "harmonics": 110,
+        "noise_seed": 7474
+      },
+      "peak_target_s16": 28000,
+      "phase_seed": 0,
+      "progression": "low stack -> outer octave bands -> high crown",
+      "revision": 1,
+      "rootBin": 1
+    },
+    {
+      "cycle_length": 128,
+      "dc_policy": "subtract high-resolution frame mean before ONE table-global gain; no decoded PCM8 DC correction",
+      "family": "PAD",
+      "frames": 16,
+      "id": 24,
+      "label": "DARK",
+      "operation": "dark",
+      "parameters": {
+        "harmonics": 60,
+        "noise_seed": 7571
+      },
+      "peak_target_s16": 28000,
+      "phase_seed": 0,
+      "progression": "low odd hollow -> heavier body -> restrained rasp",
+      "revision": 1,
+      "rootBin": 1
+    },
+    {
+      "cycle_length": 256,
+      "dc_policy": "subtract high-resolution frame mean before ONE table-global gain; no decoded PCM8 DC correction",
+      "family": "PAD",
+      "frames": 16,
+      "id": 25,
+      "label": "GLASS",
+      "operation": "glass",
+      "parameters": {
+        "harmonics": 120,
+        "noise_seed": 7668
+      },
+      "peak_target_s16": 28000,
+      "phase_seed": 0,
+      "progression": "three narrow high clusters -> wider translucent",
+      "revision": 1,
+      "rootBin": 1
+    },
+    {
+      "cycle_length": 256,
+      "dc_policy": "subtract high-resolution frame mean before ONE table-global gain; no decoded PCM8 DC correction",
+      "family": "PAD",
+      "frames": 16,
+      "id": 26,
+      "label": "CHOIR",
+      "operation": "pad_choir",
+      "parameters": {
+        "harmonics": 112,
+        "noise_seed": 7765
+      },
+      "peak_target_s16": 28000,
+      "phase_seed": 0,
+      "progression": "broad hum -> open beds -> diffuse resonance mass",
+      "revision": 1,
+      "rootBin": 1
+    },
+    {
+      "cycle_length": 256,
+      "dc_policy": "subtract high-resolution frame mean before ONE table-global gain; no decoded PCM8 DC correction",
+      "family": "PAD",
+      "frames": 16,
+      "id": 27,
+      "label": "METAL",
+      "operation": "pad_metal",
+      "parameters": {
+        "noise_seed": 7862,
+        "partials": 20,
+        "stretch": [
+          "1.01",
+          "1.095"
+        ]
+      },
+      "peak_target_s16": 28000,
+      "phase_seed": 7,
+      "progression": "lower irregular cluster -> upper cluster -> dense haze",
+      "revision": 1,
+      "rootBin": 1
+    },
+    {
+      "cycle_length": 128,
+      "dc_policy": "subtract high-resolution frame mean before ONE table-global gain; no decoded PCM8 DC correction",
+      "family": "PAD",
+      "frames": 16,
+      "id": 28,
+      "label": "MOTION",
+      "operation": "motion",
+      "parameters": {
+        "harmonics": 60,
+        "noise_seed": 7959
+      },
+      "peak_target_s16": 28000,
+      "phase_seed": 0,
+      "progression": "stable -> displaced -> exchanged populations -> animated",
+      "revision": 1,
+      "rootBin": 1
+    },
+    {
+      "cycle_length": 128,
+      "dc_policy": "subtract high-resolution frame mean before ONE table-global gain; no decoded PCM8 DC correction",
+      "family": "PAD",
+      "frames": 16,
+      "id": 29,
+      "label": "FIFTH",
+      "operation": "chord",
+      "parameters": {
+        "bins": [
+          2,
+          3
+        ],
+        "color": "open",
+        "component_weights": [
+          [
+            "1",
+            ".75"
+          ],
+          [
+            ".18",
+            "1"
+          ]
+        ],
+        "noise_seed": 8056,
+        "overtones": 6
+      },
+      "peak_target_s16": 28000,
+      "phase_seed": 0,
+      "progression": "open dyad -> octave reinforcement -> bright fifths",
+      "revision": 1,
+      "rootBin": 2
+    },
+    {
+      "cycle_length": 256,
+      "dc_policy": "subtract high-resolution frame mean before ONE table-global gain; no decoded PCM8 DC correction",
+      "family": "PAD",
+      "frames": 16,
+      "id": 30,
+      "label": "SUS2",
+      "operation": "chord",
+      "parameters": {
+        "bins": [
+          8,
+          9,
+          12
+        ],
+        "color": "second",
+        "component_weights": [
+          [
+            "1",
+            ".8"
+          ],
+          [
+            ".12",
+            ".85"
+          ],
+          [
+            ".6",
+            "1"
+          ]
+        ],
+        "noise_seed": 8153,
+        "overtones": 7
+      },
+      "peak_target_s16": 28000,
+      "phase_seed": 0,
+      "progression": "open -> second color -> upper unresolved structure",
+      "revision": 1,
+      "rootBin": 8
+    },
+    {
+      "cycle_length": 256,
+      "dc_policy": "subtract high-resolution frame mean before ONE table-global gain; no decoded PCM8 DC correction",
+      "family": "PAD",
+      "frames": 16,
+      "id": 31,
+      "label": "SUS4",
+      "operation": "chord",
+      "parameters": {
+        "bins": [
+          6,
+          8,
+          9
+        ],
+        "color": "fourth",
+        "component_weights": [
+          [
+            "1",
+            ".75"
+          ],
+          [
+            ".15",
+            "1"
+          ],
+          [
+            ".55",
+            ".8"
+          ]
+        ],
+        "noise_seed": 8250,
+        "overtones": 8
+      },
+      "peak_target_s16": 28000,
+      "phase_seed": 0,
+      "progression": "open -> fourth color -> upper unresolved structure",
+      "revision": 1,
+      "rootBin": 6
+    },
+    {
+      "cycle_length": 256,
+      "dc_policy": "subtract high-resolution frame mean before ONE table-global gain; no decoded PCM8 DC correction",
+      "family": "PAD",
+      "frames": 16,
+      "id": 32,
+      "label": "MAJ7",
+      "operation": "chord",
+      "parameters": {
+        "bins": [
+          8,
+          10,
+          12,
+          15
+        ],
+        "color": "major",
+        "component_weights": [
+          [
+            "1",
+            ".7"
+          ],
+          [
+            ".35",
+            ".65"
+          ],
+          [
+            ".4",
+            ".6"
+          ],
+          [
+            ".08",
+            "1"
+          ]
+        ],
+        "noise_seed": 8347,
+        "overtones": 6
+      },
+      "peak_target_s16": 28000,
+      "phase_seed": 0,
+      "progression": "soft major -> stronger seventh -> luminous upper density",
+      "revision": 1,
+      "rootBin": 8
+    },
+    {
+      "cycle_length": 256,
+      "dc_policy": "subtract high-resolution frame mean before ONE table-global gain; no decoded PCM8 DC correction",
+      "family": "PAD",
+      "frames": 16,
+      "id": 33,
+      "label": "MIN7",
+      "operation": "chord",
+      "parameters": {
+        "bins": [
+          10,
+          12,
+          15,
+          18
+        ],
+        "color": "minor",
+        "component_weights": [
+          [
+            "1",
+            ".7"
+          ],
+          [
+            ".45",
+            ".9"
+          ],
+          [
+            ".4",
+            ".65"
+          ],
+          [
+            ".12",
+            "1"
+          ]
+        ],
+        "noise_seed": 8444,
+        "overtones": 6
+      },
+      "peak_target_s16": 28000,
+      "phase_seed": 0,
+      "progression": "subdued minor -> hollow seventh -> rich dark mids",
+      "revision": 1,
+      "rootBin": 10
+    },
+    {
+      "cycle_length": 256,
+      "dc_policy": "subtract high-resolution frame mean before ONE table-global gain; no decoded PCM8 DC correction",
+      "family": "PAD",
+      "frames": 16,
+      "id": 34,
+      "label": "ADD9",
+      "operation": "chord",
+      "parameters": {
+        "bins": [
+          4,
+          5,
+          6,
+          9
+        ],
+        "color": "ninth",
+        "component_weights": [
+          [
+            "1",
+            ".7"
+          ],
+          [
+            ".3",
+            ".5"
+          ],
+          [
+            ".5",
+            ".75"
+          ],
+          [
+            ".1",
+            "1.1"
+          ]
+        ],
+        "noise_seed": 8541,
+        "overtones": 6
+      },
+      "peak_target_s16": 28000,
+      "phase_seed": 0,
+      "progression": "open major -> airy ninth -> wide luminous extension",
+      "revision": 1,
+      "rootBin": 4
+    },
+    {
+      "cycle_length": 256,
+      "dc_policy": "subtract high-resolution frame mean before ONE table-global gain; no decoded PCM8 DC correction",
+      "family": "PAD",
+      "frames": 16,
+      "id": 35,
+      "label": "ETHEREAL #2",
+      "operation": "ethereal_v2",
+      "parameters": {
+        "candidate": "B",
+        "approved_pcm8_sha256": "a034d4be690eae3677671fc1e1d47768522f2a83dc5979cd2f2851e99b09d0e8"
+      },
+      "peak_target_s16": 28000,
+      "phase_seed": 0,
+      "progression": "anchored body -> moving prism formants -> bell-cluster air",
+      "revision": 1,
+      "rootBin": 1
+    },
+    {
+      "id": 36,
+      "label": "BODY SWITCH",
+      "family": "CORE MOTION",
+      "operation": "original_wave_rom",
+      "parameters": {
+        "folder": "CORE MOTION",
+        "voice": 0
+      },
+      "frames": 16,
+      "cycle_length": 256,
+      "rootBin": 1,
+      "phase_seed": 0,
+      "rms_target": 0.2,
+      "source_peak_ceiling": 0.9,
+      "revision": 3,
+      "progression": "Full hollow-to-solid bass; low and middle populations exchange",
+      "intentional_return": true,
+      "held_states": false,
+      "dc_policy": "source DC subtraction then offline per-frame RMS .20; no runtime normalization; PCM8"
+    },
+    {
+      "id": 37,
+      "label": "LOW ROTOR",
+      "family": "CORE MOTION",
+      "operation": "original_wave_rom",
+      "parameters": {
+        "folder": "CORE MOTION",
+        "voice": 1
+      },
+      "frames": 16,
+      "cycle_length": 256,
+      "rootBin": 1,
+      "phase_seed": 0,
+      "rms_target": 0.2,
+      "source_peak_ceiling": 0.9,
+      "revision": 3,
+      "progression": "Rotating low harmonic pair with a stable root",
+      "intentional_return": true,
+      "held_states": false,
+      "dc_policy": "source DC subtraction then offline per-frame RMS .20; no runtime normalization; PCM8"
+    },
+    {
+      "id": 38,
+      "label": "DOUBLE EDGE",
+      "family": "CORE MOTION",
+      "operation": "original_wave_rom",
+      "parameters": {
+        "folder": "CORE MOTION",
+        "voice": 2
+      },
+      "frames": 16,
+      "cycle_length": 256,
+      "rootBin": 1,
+      "phase_seed": 0,
+      "rms_target": 0.2,
+      "source_peak_ceiling": 0.9,
+      "revision": 3,
+      "progression": "Two edges trade width, spacing and polarity",
+      "intentional_return": true,
+      "held_states": false,
+      "dc_policy": "source DC subtraction then offline per-frame RMS .20; no runtime normalization; PCM8"
+    },
+    {
+      "id": 39,
+      "label": "SYNC LATCH",
+      "family": "CORE MOTION",
+      "operation": "original_wave_rom",
+      "parameters": {
+        "folder": "CORE MOTION",
+        "voice": 3
+      },
+      "frames": 16,
+      "cycle_length": 256,
+      "rootBin": 1,
+      "phase_seed": 0,
+      "rms_target": 0.2,
+      "source_peak_ceiling": 0.9,
+      "revision": 3,
+      "progression": "Hard-sync-like integer cycle latch with changing seam",
+      "intentional_return": true,
+      "held_states": false,
+      "dc_policy": "source DC subtraction then offline per-frame RMS .20; no runtime normalization; PCM8"
+    },
+    {
+      "id": 40,
+      "label": "VECTOR FM",
+      "family": "MODULATION",
+      "operation": "original_wave_rom",
+      "parameters": {
+        "folder": "MODULATION",
+        "voice": 0
+      },
+      "frames": 16,
+      "cycle_length": 256,
+      "rootBin": 1,
+      "phase_seed": 0,
+      "rms_target": 0.2,
+      "source_peak_ceiling": 0.9,
+      "revision": 3,
+      "progression": "Crossed FM operators with rising then retreating index",
+      "intentional_return": true,
+      "held_states": false,
+      "dc_policy": "source DC subtraction then offline per-frame RMS .20; no runtime normalization; PCM8"
+    },
+    {
+      "id": 41,
+      "label": "SIDEWINDER",
+      "family": "MODULATION",
+      "operation": "original_wave_rom",
+      "parameters": {
+        "folder": "MODULATION",
+        "voice": 1
+      },
+      "frames": 16,
+      "cycle_length": 256,
+      "rootBin": 1,
+      "phase_seed": 0,
+      "rms_target": 0.2,
+      "source_peak_ceiling": 0.9,
+      "revision": 3,
+      "progression": "Ring-product sidebands exchange around the root",
+      "intentional_return": true,
+      "held_states": false,
+      "dc_policy": "source DC subtraction then offline per-frame RMS .20; no runtime normalization; PCM8"
+    },
+    {
+      "id": 42,
+      "label": "PHASE BRAID",
+      "family": "MODULATION",
+      "operation": "original_wave_rom",
+      "parameters": {
+        "folder": "MODULATION",
+        "voice": 2
+      },
+      "frames": 16,
+      "cycle_length": 256,
+      "rootBin": 1,
+      "phase_seed": 0,
+      "rms_target": 0.2,
+      "source_peak_ceiling": 0.9,
+      "revision": 3,
+      "progression": "Two phase-warp operators braid and unbraid",
+      "intentional_return": true,
+      "held_states": false,
+      "dc_policy": "source DC subtraction then offline per-frame RMS .20; no runtime normalization; PCM8"
+    },
+    {
+      "id": 43,
+      "label": "GLASS AM",
+      "family": "MODULATION",
+      "operation": "original_wave_rom",
+      "parameters": {
+        "folder": "MODULATION",
+        "voice": 3
+      },
+      "frames": 16,
+      "cycle_length": 256,
+      "rootBin": 1,
+      "phase_seed": 0,
+      "rms_target": 0.2,
+      "source_peak_ceiling": 0.9,
+      "revision": 3,
+      "progression": "Sparse amplitude sidebands change carrier emphasis",
+      "intentional_return": true,
+      "held_states": false,
+      "dc_policy": "source DC subtraction then offline per-frame RMS .20; no runtime normalization; PCM8"
+    },
+    {
+      "id": 44,
+      "label": "SPIRAL WARP",
+      "family": "MODULATION",
+      "operation": "original_wave_rom",
+      "parameters": {
+        "folder": "MODULATION",
+        "voice": 4
+      },
+      "frames": 16,
+      "cycle_length": 256,
+      "rootBin": 1,
+      "phase_seed": 0,
+      "rms_target": 0.2,
+      "source_peak_ceiling": 0.9,
+      "revision": 3,
+      "progression": "Asymmetric exponential phase warp with returning bend",
+      "intentional_return": true,
+      "held_states": false,
+      "dc_policy": "source DC subtraction then offline per-frame RMS .20; no runtime normalization; PCM8"
+    },
+    {
+      "id": 45,
+      "label": "PARITY BRIDGE",
+      "family": "SPECTRAL MOTION",
+      "operation": "original_wave_rom",
+      "parameters": {
+        "folder": "SPECTRAL MOTION",
+        "voice": 0
+      },
+      "frames": 16,
+      "cycle_length": 256,
+      "rootBin": 1,
+      "phase_seed": 0,
+      "rms_target": 0.2,
+      "source_peak_ceiling": 0.9,
+      "revision": 3,
+      "progression": "Odd/even populations exchange with independently rotating phases",
+      "intentional_return": true,
+      "held_states": false,
+      "dc_policy": "source DC subtraction then offline per-frame RMS .20; no runtime normalization; PCM8"
+    },
+    {
+      "id": 46,
+      "label": "WINDOW WALK",
+      "family": "SPECTRAL MOTION",
+      "operation": "original_wave_rom",
+      "parameters": {
+        "folder": "SPECTRAL MOTION",
+        "voice": 1
+      },
+      "frames": 16,
+      "cycle_length": 256,
+      "rootBin": 1,
+      "phase_seed": 0,
+      "rms_target": 0.2,
+      "source_peak_ceiling": 0.9,
+      "revision": 3,
+      "progression": "A spectral window travels up then splits and returns",
+      "intentional_return": true,
+      "held_states": false,
+      "dc_policy": "source DC subtraction then offline per-frame RMS .20; no runtime normalization; PCM8"
+    },
+    {
+      "id": 47,
+      "label": "HARMONIC TILES",
+      "family": "SPECTRAL MOTION",
+      "operation": "original_wave_rom",
+      "parameters": {
+        "folder": "SPECTRAL MOTION",
+        "voice": 2
+      },
+      "frames": 16,
+      "cycle_length": 256,
+      "rootBin": 1,
+      "phase_seed": 0,
+      "rms_target": 0.2,
+      "source_peak_ceiling": 0.9,
+      "revision": 3,
+      "progression": "Four harmonic tiles change order in held states",
+      "intentional_return": true,
+      "held_states": true,
+      "dc_policy": "source DC subtraction then offline per-frame RMS .20; no runtime normalization; PCM8"
+    },
+    {
+      "id": 48,
+      "label": "PRIME WALK",
+      "family": "SPECTRAL MOTION",
+      "operation": "original_wave_rom",
+      "parameters": {
+        "folder": "SPECTRAL MOTION",
+        "voice": 3
+      },
+      "frames": 16,
+      "cycle_length": 256,
+      "rootBin": 1,
+      "phase_seed": 0,
+      "rms_target": 0.2,
+      "source_peak_ceiling": 0.9,
+      "revision": 3,
+      "progression": "Prime partial population migrates between registers",
+      "intentional_return": true,
+      "held_states": false,
+      "dc_policy": "source DC subtraction then offline per-frame RMS .20; no runtime normalization; PCM8"
+    },
+    {
+      "id": 49,
+      "label": "BIT GARDEN",
+      "family": "DIGITAL TONES",
+      "operation": "original_wave_rom",
+      "parameters": {
+        "folder": "DIGITAL TONES",
+        "voice": 0
+      },
+      "frames": 16,
+      "cycle_length": 256,
+      "rootBin": 1,
+      "phase_seed": 0,
+      "rms_target": 0.2,
+      "source_peak_ceiling": 0.9,
+      "revision": 3,
+      "progression": "Gray-code bit-plane melody in held digital states",
+      "intentional_return": true,
+      "held_states": true,
+      "dc_policy": "source DC subtraction then offline per-frame RMS .20; no runtime normalization; PCM8"
+    },
+    {
+      "id": 50,
+      "label": "QUANT CROSS",
+      "family": "DIGITAL TONES",
+      "operation": "original_wave_rom",
+      "parameters": {
+        "folder": "DIGITAL TONES",
+        "voice": 1
+      },
+      "frames": 16,
+      "cycle_length": 256,
+      "rootBin": 1,
+      "phase_seed": 0,
+      "rms_target": 0.2,
+      "source_peak_ceiling": 0.9,
+      "revision": 3,
+      "progression": "Quantized FM ladder exchanges quantization and modulation",
+      "intentional_return": true,
+      "held_states": true,
+      "dc_policy": "source DC subtraction then offline per-frame RMS .20; no runtime normalization; PCM8"
+    },
+    {
+      "id": 51,
+      "label": "RAIL STEPS",
+      "family": "DIGITAL TONES",
+      "operation": "original_wave_rom",
+      "parameters": {
+        "folder": "DIGITAL TONES",
+        "voice": 2
+      },
+      "frames": 16,
+      "cycle_length": 256,
+      "rootBin": 3,
+      "phase_seed": 0,
+      "rms_target": 0.2,
+      "source_peak_ceiling": 0.9,
+      "revision": 3,
+      "progression": "Ternary rail melody over a three-cycle root",
+      "intentional_return": true,
+      "held_states": true,
+      "dc_policy": "source DC subtraction then offline per-frame RMS .20; no runtime normalization; PCM8"
+    },
+    {
+      "id": 52,
+      "label": "TINE GARDEN",
+      "family": "METAL & KEYS",
+      "operation": "original_wave_rom",
+      "parameters": {
+        "folder": "METAL & KEYS",
+        "voice": 0
+      },
+      "frames": 16,
+      "cycle_length": 256,
+      "rootBin": 1,
+      "phase_seed": 0,
+      "rms_target": 0.2,
+      "source_peak_ceiling": 0.9,
+      "revision": 3,
+      "progression": "Sparse tine populations with changing upper resonance",
+      "intentional_return": true,
+      "held_states": false,
+      "dc_policy": "source DC subtraction then offline per-frame RMS .20; no runtime normalization; PCM8"
+    },
+    {
+      "id": 53,
+      "label": "BELL PATH",
+      "family": "METAL & KEYS",
+      "operation": "original_wave_rom",
+      "parameters": {
+        "folder": "METAL & KEYS",
+        "voice": 1
+      },
+      "frames": 16,
+      "cycle_length": 256,
+      "rootBin": 1,
+      "phase_seed": 0,
+      "rms_target": 0.2,
+      "source_peak_ceiling": 0.9,
+      "revision": 3,
+      "progression": "Bell partial constellation exchanges upper islands",
+      "intentional_return": true,
+      "held_states": false,
+      "dc_policy": "source DC subtraction then offline per-frame RMS .20; no runtime normalization; PCM8"
+    },
+    {
+      "id": 54,
+      "label": "BRIGHT WIRES",
+      "family": "METAL & KEYS",
+      "operation": "original_wave_rom",
+      "parameters": {
+        "folder": "METAL & KEYS",
+        "voice": 2
+      },
+      "frames": 16,
+      "cycle_length": 256,
+      "rootBin": 1,
+      "phase_seed": 0,
+      "rms_target": 0.2,
+      "source_peak_ceiling": 0.9,
+      "revision": 3,
+      "progression": "Bright string-like discrete partial groups",
+      "intentional_return": true,
+      "held_states": false,
+      "dc_policy": "source DC subtraction then offline per-frame RMS .20; no runtime normalization; PCM8"
+    },
+    {
+      "id": 55,
+      "label": "SOFT ALLOY",
+      "family": "METAL & KEYS",
+      "operation": "original_wave_rom",
+      "parameters": {
+        "folder": "METAL & KEYS",
+        "voice": 3
+      },
+      "frames": 16,
+      "cycle_length": 256,
+      "rootBin": 1,
+      "phase_seed": 0,
+      "rms_target": 0.2,
+      "source_peak_ceiling": 0.9,
+      "revision": 3,
+      "progression": "Soft metallic chord changes partial populations",
+      "intentional_return": true,
+      "held_states": false,
+      "dc_policy": "source DC subtraction then offline per-frame RMS .20; no runtime normalization; PCM8"
+    },
+    {
+      "id": 56,
+      "label": "MAJOR TRIAD",
+      "family": "HARMONY",
+      "operation": "original_wave_rom",
+      "parameters": {
+        "folder": "HARMONY",
+        "voice": 0
+      },
+      "frames": 16,
+      "cycle_length": 512,
+      "rootBin": 16,
+      "phase_seed": 0,
+      "rms_target": 0.2,
+      "source_peak_ceiling": 0.9,
+      "revision": 4,
+      "progression": "Fixed just major triad; root/third/fifth remain audible while octave colour changes",
+      "intentional_return": true,
+      "held_states": false,
+      "dc_policy": "source DC subtraction and offline RMS .20; PCM8; no runtime auto-gain",
+      "pitch_bins": [
+        16,
+        20,
+        24
+      ],
+      "tuning": "simple exact just ratios with octave-spaced pentatonic colour notes"
+    },
+    {
+      "id": 57,
+      "label": "MINOR TRIAD",
+      "family": "HARMONY",
+      "operation": "original_wave_rom",
+      "parameters": {
+        "folder": "HARMONY",
+        "voice": 1
+      },
+      "frames": 16,
+      "cycle_length": 512,
+      "rootBin": 20,
+      "phase_seed": 0,
+      "rms_target": 0.2,
+      "source_peak_ceiling": 0.9,
+      "revision": 4,
+      "progression": "Fixed just minor triad; root/minor third/fifth with warm overtone exchange",
+      "intentional_return": true,
+      "held_states": false,
+      "dc_policy": "source DC subtraction and offline RMS .20; PCM8; no runtime auto-gain",
+      "pitch_bins": [
+        20,
+        24,
+        30
+      ],
+      "tuning": "simple exact just ratios with octave-spaced pentatonic colour notes"
+    },
+    {
+      "id": 58,
+      "label": "OPEN SUS4",
+      "family": "HARMONY",
+      "operation": "original_wave_rom",
+      "parameters": {
+        "folder": "HARMONY",
+        "voice": 2
+      },
+      "frames": 16,
+      "cycle_length": 512,
+      "rootBin": 24,
+      "phase_seed": 0,
+      "rms_target": 0.2,
+      "source_peak_ceiling": 0.9,
+      "revision": 4,
+      "progression": "Fixed suspended fourth chord; no minor/major third or changing pitch collection",
+      "intentional_return": true,
+      "held_states": false,
+      "dc_policy": "source DC subtraction and offline RMS .20; PCM8; no runtime auto-gain",
+      "pitch_bins": [
+        24,
+        32,
+        36
+      ],
+      "tuning": "simple exact just ratios with octave-spaced pentatonic colour notes"
+    },
+    {
+      "id": 59,
+      "label": "MAJOR PENTA",
+      "family": "HARMONY",
+      "operation": "original_wave_rom",
+      "parameters": {
+        "folder": "HARMONY",
+        "voice": 3
+      },
+      "frames": 16,
+      "cycle_length": 512,
+      "rootBin": 24,
+      "phase_seed": 0,
+      "rms_target": 0.2,
+      "source_peak_ceiling": 0.9,
+      "revision": 4,
+      "progression": "Open major-pentatonic C-G-D-E-A voicing; root/third/fifth anchor softer second/sixth",
+      "intentional_return": true,
+      "held_states": false,
+      "dc_policy": "source DC subtraction and offline RMS .20; PCM8; no runtime auto-gain",
+      "pitch_bins": [
+        24,
+        36,
+        54,
+        60,
+        80
+      ],
+      "tuning": "simple exact just ratios with octave-spaced pentatonic colour notes"
+    },
+    {
+      "id": 60,
+      "label": "TILT CLUSTER",
+      "family": "SFX",
+      "operation": "original_wave_rom",
+      "parameters": {
+        "folder": "SFX",
+        "voice": 0
+      },
+      "frames": 16,
+      "cycle_length": 256,
+      "rootBin": 16,
+      "phase_seed": 0,
+      "rms_target": 0.2,
+      "source_peak_ceiling": 0.9,
+      "revision": 3,
+      "progression": "Non-octave beating cluster with shifting dissonance",
+      "intentional_return": true,
+      "held_states": false,
+      "dc_policy": "source DC subtraction then offline per-frame RMS .20; no runtime normalization; PCM8"
+    },
+    {
+      "id": 61,
+      "label": "MINOR PENTA",
+      "family": "HARMONY",
+      "operation": "original_wave_rom",
+      "parameters": {
+        "folder": "HARMONY",
+        "voice": 4
+      },
+      "frames": 16,
+      "cycle_length": 512,
+      "rootBin": 30,
+      "phase_seed": 0,
+      "rms_target": 0.2,
+      "source_peak_ceiling": 0.9,
+      "revision": 4,
+      "progression": "Open minor-pentatonic C-G-Eb-F-Bb voicing; root/third/fifth anchor softer fourth/seventh",
+      "intentional_return": true,
+      "held_states": false,
+      "dc_policy": "source DC subtraction and offline RMS .20; PCM8; no runtime auto-gain",
+      "pitch_bins": [
+        30,
+        45,
+        72,
+        80,
+        108
+      ],
+      "tuning": "simple exact just ratios with octave-spaced pentatonic colour notes"
+    },
+    {
+      "id": 62,
+      "label": "PACKET RELAY",
+      "family": "SFX",
+      "operation": "original_wave_rom",
+      "parameters": {
+        "folder": "SFX",
+        "voice": 1
+      },
+      "frames": 16,
+      "cycle_length": 256,
+      "rootBin": 1,
+      "phase_seed": 0,
+      "rms_target": 0.2,
+      "source_peak_ceiling": 0.9,
+      "revision": 3,
+      "progression": "Three irregular wave packets trade width and location",
+      "intentional_return": true,
+      "held_states": false,
+      "dc_policy": "source DC subtraction then offline per-frame RMS .20; no runtime normalization; PCM8"
+    },
+    {
+      "id": 63,
+      "label": "NOISE SHIFT",
+      "family": "SFX",
+      "operation": "original_wave_rom",
+      "parameters": {
+        "folder": "SFX",
+        "voice": 2
+      },
+      "frames": 16,
+      "cycle_length": 512,
+      "rootBin": 4,
+      "phase_seed": 0,
+      "rms_target": 0.2,
+      "source_peak_ceiling": 0.9,
+      "revision": 3,
+      "progression": "Fine shift-register fizz with evolving colour and gaps",
+      "intentional_return": true,
+      "held_states": false,
+      "dc_policy": "source DC subtraction then offline per-frame RMS .20; no runtime normalization; PCM8"
+    },
+    {
+      "id": 64,
+      "label": "NOISE CELL",
+      "family": "SFX",
+      "operation": "original_wave_rom",
+      "parameters": {
+        "folder": "SFX",
+        "voice": 3
+      },
+      "frames": 16,
+      "cycle_length": 512,
+      "rootBin": 4,
+      "phase_seed": 0,
+      "rms_target": 0.2,
+      "source_peak_ceiling": 0.9,
+      "revision": 3,
+      "progression": "Sparse cellular crackle; bursts reorganize in discrete states",
+      "intentional_return": true,
+      "held_states": true,
+      "dc_policy": "source DC subtraction then offline per-frame RMS .20; no runtime normalization; PCM8"
+    },
+    {
+      "id": 65,
+      "label": "NOISE COUNTER",
+      "family": "SFX",
+      "operation": "original_wave_rom",
+      "parameters": {
+        "folder": "SFX",
+        "voice": 4
+      },
+      "frames": 16,
+      "cycle_length": 512,
+      "rootBin": 4,
+      "phase_seed": 0,
+      "rms_target": 0.2,
+      "source_peak_ceiling": 0.9,
+      "revision": 3,
+      "progression": "Coarse counter/XOR debris with pitched fragments and state jumps",
+      "intentional_return": true,
+      "held_states": true,
+      "dc_policy": "source DC subtraction then offline per-frame RMS .20; no runtime normalization; PCM8"
+    }
+  ],
+  "schema": 1
+}

@@ -1,5 +1,6 @@
 // GPL-2.0-or-later. Load both products concurrently through their public VST3 ABI.
 #include "Core.h"
+#include "HistoricalState.h"
 #include "ProductIdentity.h"
 #include "pluginterfaces/base/ipluginbase.h"
 #include "pluginterfaces/gui/iplugview.h"
@@ -39,7 +40,7 @@ int main(int argc,char **argv) {
   auto preset=xs::encode(xs::defaults());MemoryStream incompatible(preset.data(),preset.size());
   check(processor[0]->setState(&incompatible)!=kResultOk,"Reference accepted expansion state");
   auto referencePreset=xs::defaults();referencePreset[0]=referencePreset[2]=0;
-  auto old=xs::encode(referencePreset);old.resize(264);old[2]='V';old[3]='3';old[4]=1;MemoryStream import(old.data(),old.size());
+  auto old=historicalState(referencePreset);old.resize(264);old[2]='V';old[3]='3';old[4]=1;MemoryStream import(old.data(),old.size());
   check(processor[1]->setState(&import)==kResultOk,"Expansion cannot import reference state");
   check(FindWindowExW(parent,nullptr,L"Xsynth1999Editor",nullptr)!=nullptr,"Reference editor class missing");
   check(FindWindowExW(parent,nullptr,L"XsynthExpansionDevEditor",nullptr)!=nullptr,"Expansion editor class missing");

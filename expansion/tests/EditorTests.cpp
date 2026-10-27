@@ -43,31 +43,32 @@ void geometryChecks(const char* csvPath) {
   check(a.x+240==b.x&&a.y==b.y&&a.valueWidth==b.valueWidth,"EG knob templates differ");
   check(same(fieldBounds(a),fieldBounds(b),240)&&same(labelBounds(a),labelBounds(b),240),"EG field/label templates differ");}
  for(int id:std::initializer_list<int>{14,20,Voices,Unison,LfoPhase,LfoPolarity}){
-  check(fieldBounds(control(id)).y+faceGrid::HeaderHeight==355,"Middle shared outer top drift");
-  check(labelBounds(control(id)).y+faceGrid::HeaderHeight==341,"Middle shared label row drift");}
- for(int column=0;column<3;++column){int ids[]={8,Detune,MasterTune};auto expected=moduleGrid::knob(720,3,column,moduleGrid::TopKnobs,ids[column],"");const auto &c=control(ids[column]);check(c.x==expected.x&&c.y==expected.y&&c.valueWidth==expected.valueWidth,"VOICE three-knob shared grid");}
- for(int column=0;column<2;++column){int ids[]={GlideMode,BendRange};auto expected=moduleGrid::pair(720,column,moduleGrid::LastSelectors,ids[column],"");const auto &c=control(ids[column]);check(c.x==expected.x&&c.y==expected.y&&c.w==expected.w,"VOICE lower paired grid");}
- check(control(Curve1).x*2+control(Curve1).w==720,"EG1 Curve is not centered on x=360");
- check(labelBounds(control(Curve1)).x*2+labelBounds(control(Curve1)).w==720,"EG1 Curve label not centered");
- for(int left:std::initializer_list<int>{26,LfoPhase,Curve2,Voices}){
+  check(fieldBounds(control(id)).y+faceGrid::HeaderHeight==342,"Middle shared outer top drift");
+  check(labelBounds(control(id)).y+faceGrid::HeaderHeight==328,"Middle shared label row drift");}
+ for(int column=0;column<4;++column){int ids[]={8,Detune,Width,MasterTune};auto expected=moduleGrid::knob(704,4,column,moduleGrid::TopKnobs,ids[column],"");const auto &c=control(ids[column]);check(c.x==expected.x&&c.y==expected.y&&c.valueWidth==expected.valueWidth,"VOICE four-knob shared grid");}
+ for(int column=0;column<2;++column){int ids[]={GlideMode,BendRange};auto expected=moduleGrid::pair(704,column,moduleGrid::LastSelectors,ids[column],"");const auto &c=control(ids[column]);check(c.x==expected.x&&c.y==expected.y&&c.w==expected.w,"VOICE lower paired grid");}
+ check(control(Curve1).x*2+control(Curve1).w==688,"EG1 Curve is not centered on x=344");
+ check(labelBounds(control(Curve1)).x*2+labelBounds(control(Curve1)).w==688,"EG1 Curve label not centered");
+ for(int left:std::initializer_list<int>{26,LfoPhase,Voices}){
   int right=left==26?LfoClock:left==LfoPhase?LfoPolarity:left==Curve2?Loop2:Unison;
-  const auto&a=control(left);const auto&b=control(right);int origin=(a.x/240)*240;
-  check(a.x-origin==12&&origin+240-b.x-b.w==12&&b.x-a.x-a.w==12,"Paired margins or central gap drift");
-  check(a.w==102&&b.w==102&&a.y==b.y,"Paired selector geometry drift");
+  const auto&a=control(left);const auto&b=control(right);int origin=left==Voices?704:0;int width=left==Voices?288:224;
+  check(a.x-origin==12&&origin+width-b.x-b.w==12&&b.x-a.x-a.w==12,"Paired margins or central gap drift");
+  check(a.w==(moduleGrid::content(origin)-12)/2&&b.w==a.w&&a.y==b.y,"Paired selector geometry drift");
   check(labelBounds(a).y==labelBounds(b).y,"Paired label baseline drift");}
- for(int id:{VoiceMode})check(control(id).x==732&&control(id).w==216,"Full VOICE margins drift");
- for(int i=0;i<6;++i){auto p=panels[i];auto h=faceGrid::header(p);check(p.y==0&&p.h==154&&h.y==4&&h.h==14,"Top panel shell/header drift");if(i<5)check(p.x+p.w==panels[i+1].x,"Top module gutter drift");}
- for(int i=6;i<10;++i)check(panels[i].x==(i-6)*240&&panels[i].y==154&&panels[i].w==240&&panels[i].h==216,"Middle panel geometry drift");
- for(auto&c:mainControls)if(c.y<154){
+ for(int id:{VoiceMode})check(control(id).x==716&&control(id).w==264,"Full VOICE margins drift");
+ for(int i=0;i<7;++i){auto p=panels[i];auto h=faceGrid::header(p);check(p.y==0&&p.h==141&&h.y==4&&h.h==14,"Top panel shell/header drift");if(i<6)check(p.x+p.w==panels[i+1].x,"Top module gutter drift");}
+ const int middleX[]={0,224,464,704},middleW[]={224,240,240,288};for(int i=7;i<11;++i)check(panels[i].x==middleX[i-7]&&panels[i].y==141&&panels[i].w==middleW[i-7]&&panels[i].h==216,"Middle panel geometry drift");
+ for(auto&c:mainControls)if(c.y<141){
   if(c.kind==ControlKind::Knob){check(c.y+15+48==93&&fieldBounds(c).y+48==127&&fieldBounds(c).h==12,"Top knob/value row drift");check(labelBounds(c).y+48==113,"Top knob label drift");}
-  if(c.kind==ControlKind::Selector)check(c.y+48==162&&fieldBounds(c).h==18&&labelBounds(c).y+48==147,"Top selector row drift");}
- for(int i=0;i<2;++i){int origin=i?308:0;for(int col=0;col<2;++col){auto&k=control(i*2+col);auto&s=control(col?Engine1+i:24+i);check(2*(k.x+15)==2*s.x+s.w,"Oscillator knob/selector column centers differ");}check(control(i*2).x+15+control(i*2+1).x+15==2*(origin+85),"Oscillator group off center");}
- check(control(7).x+15==530,"MIXER knob off center");
- check(control(21).x+15==624&&control(22).x+15==708&&control(Keytrack).x+15==792,"VCF row off center");
+  if(c.kind==ControlKind::Selector){if(c.id==DistMode)check(c.x==748&&c.y+48==142&&c.w==120&&fieldBounds(c).h==18&&!c.label[0],"Distortion full-width mode row drift");else check(c.y+48==162&&fieldBounds(c).h==18&&labelBounds(c).y+48==147,"Top selector row drift");}}
+ check(control(DistMode).x==control(DistPlace).x&&control(DistMode).w==control(DistPlace).w&&control(DistPlace).y-control(DistMode).y==20,"Distortion selector grid drift");
+ for(int i=0;i<2;++i){int origin=i?288:0;auto wave=vcoGrid::wave(i);auto first=vcoGrid::renderer(i,0),last=vcoGrid::renderer(i,2);check(first.x==wave.x&&last.x+last.w==wave.x+wave.w,"Renderer row must fit exactly beneath Wave");for(int j=0;j<3;++j){auto b=vcoGrid::renderer(i,j);check(b.w==48&&b.h==18&&b.y==114,"Renderer buttons must match");}check(control(i*2).x+15+control(i*2+1).x+15==2*(origin+86),"Oscillator group off center");}
+ check(control(7).x+15==499,"MIXER knob off center");
+ check(control(21).x+15==577&&control(22).x+15==637&&control(Keytrack).x+15==697,"VCF row off center");
  auto routes=matrixControls();
- check(matrixGrid::LabelY==389&&MatrixFirstRow==404,"Shared matrix spacing revision drift");
- check(matrixGrid::LabelY==faceGrid::header(panels[10]).y+faceGrid::HeaderH+matrixGrid::HeaderClearance,"Matrix headings do not clear title");
- for(int row=0;row<6;++row)for(int column=0;column<3;++column){auto a=fieldBounds(routes[row*3+column]),b=fieldBounds(routes[(row+6)*3+column]);check(same(a,b,480),"Matrix halves differ");check(a.y+48==452+row*19&&a.h==18,"Matrix row spacing drift");check(a.x==matrixGrid::FieldX[column]&&a.w==matrixGrid::FieldWidth[column],"Matrix horizontal geometry drift");check(a.y+a.h+48<=565,"Matrix bottom padding lost");}
+ check(matrixGrid::LabelY==378&&MatrixFirstRow==393,"Shared matrix spacing revision drift");
+ check(matrixGrid::LabelY==faceGrid::header(panels[11]).y+faceGrid::HeaderH+matrixGrid::HeaderClearance,"Matrix headings do not clear title");
+ for(int row=0;row<6;++row)for(int column=0;column<3;++column){auto a=fieldBounds(routes[row*3+column]),b=fieldBounds(routes[(row+6)*3+column]);check(same(a,b,496),"Matrix halves differ");check(a.y+48==441+row*20&&a.h==18,"Matrix row spacing drift");check(a.x==matrixGrid::FieldX[column]&&a.w==matrixGrid::FieldWidth[column],"Matrix horizontal geometry drift");check(a.y+a.h+48<=565,"Matrix bottom padding lost");}
  HDC dc=CreateCompatibleDC(nullptr);HFONT font=CreateFontW(-10,0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,NONANTIALIASED_QUALITY,DEFAULT_PITCH,L"Tahoma");auto previous=SelectObject(dc,font);TEXTMETRIC tm{};GetTextMetrics(dc,&tm);
  auto baseline=[&](Bounds r){return r.y+faceGrid::HeaderHeight+(r.h-tm.tmHeight)/2+tm.tmAscent;};
  std::cout<<"GEOMETRY: native Tahoma height="<<tm.tmHeight<<" ascent="<<tm.tmAscent<<"; EG Filter Depth/Voices outer tops=355, label baseline="<<baseline(labelBounds(control(14)))<<"\n";
@@ -108,7 +109,7 @@ int main(int argc,char** argv) {
       const auto closed = capture(first, width, height);
       for(int id:std::initializer_list<int>{14,20,xs::Voices,xs::Unison}) {
         const auto field=xs::fieldBounds(control(id));
-        int px=int(std::round((field.x+2)*scale)),py=int(std::round(355*scale));
+        int px=int(std::round((field.x+2)*scale)),py=int(std::round(342*scale));
         check((closed[py*width+px]&0xffffff)==(control(id).kind==xs::ControlKind::Knob?0x041216:0xa5c3c2),"Rendered shared-band outer top drift");
       }
       check(closed == capture(second, width, height), "Instances initially differ");
@@ -118,7 +119,7 @@ int main(int argc,char** argv) {
       check(closed == capture(second, width, height), "Credits leaked to another instance");
       for (int y = 0; y < height; ++y)
         for (int x = 0; x < width; ++x)
-          if (x < int(std::round(262 * scale)) || x >= int(std::round(698 * scale)) ||
+          if (x < int(std::round(278 * scale)) || x >= int(std::round(714 * scale)) ||
               y < int(std::round(100 * scale)) || y >= int(std::round(516 * scale)))
             check(closed[y * width + x] == opened[y * width + x], "Overlay changed exterior pixels");
       click(280,347); // Anywhere on the panel dismisses without editing below.
@@ -156,11 +157,11 @@ int main(int argc,char** argv) {
     check(std::abs(state[amount]-.6)<1.e-10,"Bipolar amount did not drag horizontally");
     SendMessageW(first,WM_LBUTTONDBLCLK,MK_LBUTTON,MAKELPARAM(400,amountY));
     check(state[amount]==.5,"Bipolar amount did not reset to zero");
-    SendMessageW(first,WM_LBUTTONDOWN,MK_LBUTTON,MAKELPARAM(280,93));
-    SendMessageW(first,WM_LBUTTONUP,0,MAKELPARAM(280,93));
+    SendMessageW(first,WM_LBUTTONDOWN,MK_LBUTTON,MAKELPARAM(252,93));
+    SendMessageW(first,WM_LBUTTONUP,0,MAKELPARAM(252,93));
     check(state[27]==1 && GetCapture()!=first,"Hard Sync button failed or captured a knob drag");
-    SendMessageW(first,WM_LBUTTONDOWN,MK_LBUTTON,MAKELPARAM(280,93));
-    SendMessageW(first,WM_LBUTTONUP,0,MAKELPARAM(280,93));
+    SendMessageW(first,WM_LBUTTONDOWN,MK_LBUTTON,MAKELPARAM(252,93));
+    SendMessageW(first,WM_LBUTTONUP,0,MAKELPARAM(252,93));
     check(state[27]==0,"Hard Sync button did not toggle off");
     state[amount]=.6;
     const auto beforeHover=state;
@@ -175,7 +176,7 @@ int main(int argc,char** argv) {
     check(highlighted!=unhighlighted,"Marker hover did not highlight its route");
     for(int y=0;y<xs::NativeHeight;++y)for(int x=0;x<xs::NativeWidth;++x)
       if(highlighted[y*xs::NativeWidth+x]!=unhighlighted[y*xs::NativeWidth+x])
-        check(x>=28 && x<=470 && y>=xs::MatrixFirstRow+46 && y<=xs::MatrixFirstRow+72,
+        check(x>=28 && x<=486 && y>=xs::MatrixFirstRow+46 && y<=xs::MatrixFirstRow+72,
               "Marker hover changed pixels outside its matrix row");
     SendMessageW(first,WM_MOUSELEAVE,0,0);
     check(capture(first,xs::NativeWidth,xs::NativeHeight)==unhighlighted,"Hover exit did not restore GUI exactly");
@@ -199,12 +200,38 @@ int main(int argc,char** argv) {
           check(((image[(box.y+48+y)*xs::NativeWidth+box.x+x]&0xffffff)==xs::theme::style(xs::theme::Id(theme)).readoutText)==((static_cast<uint32_t*>(maskData)[y*54+x]&0xffffff)==0xffffff),"Extended Pitch readout glyph mismatch");}
       }
     }
+    // Actual glyphs must expose tenths, fit the existing fields, and follow
+    // the selected LFO without changing any saved value or emitting edits.
+    const double depthValues[]={0.,.123,.501,1.};
+    const char* depthText[]={"0.0%","12.3%","50.1%","100.0%"};
+    for(unsigned theme=0;theme<xs::theme::Count;++theme){a.setTheme(xs::theme::Id(theme));
+      for(int lfo=0;lfo<4;++lfo){auto tab=xs::lfoTabs::bounds(lfo);
+        SendMessageW(first,WM_LBUTTONDOWN,MK_LBUTTON,MAKELPARAM(tab.x+tab.w/2,tab.y+48+tab.h/2));
+        SendMessageW(first,WM_LBUTTONUP,0,MAKELPARAM(tab.x+tab.w/2,tab.y+48+tab.h/2));
+        for(int k=0;k<4;++k){
+          for(int id:{xs::lfoParam(lfo,1),xs::lfoParam(lfo,2),13,14,19,20})state[id]=depthValues[k];
+          auto saved=state;int oldEdits=edits,oldGestures=gestures;
+          auto image=capture(first,xs::NativeWidth,xs::NativeHeight);
+          check(state==saved&&edits==oldEdits&&gestures==oldGestures,"Depth rendering changed state/automation");
+          for(int id:{5,6,13,14,19,20}){auto box=xs::fieldBounds(control(id));
+            PatBlt(maskDC,0,0,54,12,BLACKNESS);RECT rect{0,0,box.w,box.h};SIZE extent{};
+            GetTextExtentPoint32A(maskDC,depthText[k],int(std::strlen(depthText[k])),&extent);
+            check(extent.cx<=box.w-2&&extent.cy<=box.h,"Fine depth readout would clip");
+            DrawTextA(maskDC,depthText[k],-1,&rect,DT_CENTER|DT_SINGLELINE|DT_VCENTER|DT_NOPREFIX);GdiFlush();
+            for(int y=0;y<box.h;++y)for(int x=0;x<box.w;++x)
+              check(((image[(box.y+48+y)*xs::NativeWidth+box.x+x]&0xffffff)==xs::theme::style(xs::theme::Id(theme)).readoutText)==((static_cast<uint32_t*>(maskData)[y*54+x]&0xffffff)==0xffffff),"Fine depth readout glyph mismatch");
+          }
+        }
+      }
+    }
+    auto tab=xs::lfoTabs::bounds(0);SendMessageW(first,WM_LBUTTONDOWN,MK_LBUTTON,MAKELPARAM(tab.x+tab.w/2,tab.y+48+tab.h/2));SendMessageW(first,WM_LBUTTONUP,0,MAKELPARAM(tab.x+tab.w/2,tab.y+48+tab.h/2));
     SelectObject(maskDC,fontOld);DeleteObject(pitchFont);SelectObject(maskDC,maskOld);DeleteObject(maskBitmap);DeleteDC(maskDC);
+    std::cout<<"PASS: fine percentage glyphs fit all four LFOs and both EGs in all six themes; rendering preserves state/automation\n";
     std::cout<<"PASS: -24/-12/0/+12/+24 semitone readouts complete and unclipped in all six themes\n";
     // Real editor events: coarse manual Pitch steps; all other paths retain
     // fractional normalized values. Exercise each pixel, direction and DPI.
     for(int percent : {100,125,150,200}) {
-      double scale=percent/100.;a.resize(960*percent/100,568*percent/100);
+      double scale=percent/100.;a.resize(xs::NativeWidth*percent/100,xs::NativeHeight*percent/100);
       for(int id : {0,2}) {
         auto c=control(id);int x=int((c.x+15)*scale),y=int((c.y+15+48)*scale);
         auto move=[&](int dy,WPARAM flags){SendMessageW(first,WM_MOUSEMOVE,flags,MAKELPARAM(x,y-dy));};
@@ -230,7 +257,7 @@ int main(int argc,char** argv) {
         state[id]=.513579;
         auto bytes=xs::encode(state);xs::State loaded{};
         check(xs::decode(bytes.data(),bytes.size(),loaded)&&loaded[id]==state[id],"Fine pitch state rounded");
-        capture(first,960*percent/100,568*percent/100);
+        capture(first,xs::NativeWidth*percent/100,xs::NativeHeight*percent/100);
         check(state[id]==.513579,"Rendering rounded loaded fine pitch");
         SendMessageW(first,WM_LBUTTONDOWN,MK_LBUTTON|MK_SHIFT,MAKELPARAM(x,y));
         check(state[id]==.513579,"Mouse down rounded loaded fine pitch");
@@ -254,6 +281,7 @@ int main(int argc,char** argv) {
     return 1;
   }
 }
+
 
 
 

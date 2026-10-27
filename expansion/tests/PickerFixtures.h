@@ -11,6 +11,39 @@ inline SHORT WINAPI fixtureAsync(int key){return key==VK_LBUTTON&&fixtureHeld?SH
 inline int popupChoice=-999,popupCalls=0;
 inline int expectedSourcePosition=-1,sourceMenuChecks=0;
 inline int expectedLfoShape=-1,lfoShapeMenuChecks=0;
+inline int expectedDestination=-1,destinationMenuChecks=0;
+inline bool expectedDestinationOff=false;
+inline void verifyDestinationMenu(HMENU menu,int current){
+  current=xs::shapePositionIdentity(current);
+  const char* roots[]={"VCO1","XMOD","VCO2","Mixer","Filter","LFO","EG1 (VCA)","EG2","Voice"};
+  check(GetMenuItemCount(menu)==10,"Destination module category count");
+  char offLabel[16]{};GetMenuStringA(menu,0,offLabel,sizeof offLabel,MF_BYPOSITION);
+  check(std::string(offLabel)=="Off"&&GetMenuItemID(menu,0)==xs::DestinationCount+1,"Destination Off clear command");
+  check(bool(GetMenuState(menu,0,MF_BYPOSITION)&MF_CHECKED)==expectedDestinationOff,"Destination Off checkmark");
+  bool seen[xs::DestinationCount]{};int leaves=0,checked=0;
+  auto items=[&](HMENU child,int root,bool filterB){
+    check(child&&GetMenuItemCount(child)>0,"Empty destination module");
+    for(int i=0;i<GetMenuItemCount(child);++i){int id=int(GetMenuItemID(child,i))-1;char label[96]{};
+      check(id>=0&&id<xs::DestinationCount&&id!=42&&id!=43&&!seen[id]&&!GetSubMenu(child,i),"Destination missing/duplicate/invalid command");
+      seen[id]=true;++leaves;GetMenuStringA(child,i,label,sizeof label,MF_BYPOSITION);
+      check(std::string(label)==xs::Destinations[id],"Destination label/identity changed");
+      bool selected=bool(GetMenuState(child,i,MF_BYPOSITION)&MF_CHECKED);checked+=selected;
+      check(selected==(!expectedDestinationOff&&id==current),"Grouped destination checkmark mismatch");
+      std::string text=label;int category=text.rfind("VCO1 ",0)==0?0:text.rfind("XMOD ",0)==0?1:text.rfind("VCO2 ",0)==0?2:text.rfind("Mixer ",0)==0?3:text.rfind("VCF ",0)==0?4:text.rfind("LFO ",0)==0?5:text.rfind("EG1 ",0)==0?6:text.rfind("EG2 ",0)==0?7:8;
+      check(category==root,"Destination is in the wrong module category");
+      if(root==4)check((text.rfind("VCF B ",0)==0)==filterB,"Filter A/B category mismatch");
+    }
+  };
+  for(int root=0;root<9;++root){char label[96]{};GetMenuStringA(menu,root+1,label,sizeof label,MF_BYPOSITION);
+    check(std::string(label)==roots[root],"Destination module label/order");auto child=GetSubMenu(menu,root+1);
+    if(root==4){check(child&&GetMenuItemCount(child)==2,"Filter A/B submenu count");
+      for(int f=0;f<2;++f){GetMenuStringA(child,f,label,sizeof label,MF_BYPOSITION);check(std::string(label)==(f?"B":"A"),"Filter A/B submenu label");items(GetSubMenu(child,f),root,f!=0);}
+    }else items(child,root,false);
+  }
+  for(int id=0;id<xs::DestinationCount;++id)check(seen[id]==(id!=42&&id!=43),"Unified destination visibility");
+  check(leaves==xs::DestinationCount-2&&checked==(expectedDestinationOff?0:1),"Grouped destinations not exhaustive/unique");++destinationMenuChecks;
+}
+inline std::vector<std::string> expectedVcoLabels;
 inline bool expectFileError=false;
 inline int fileErrors=0;
 inline bool injectPointer=false;
@@ -44,6 +77,21 @@ inline BOOL WINAPI fixtureFile(LPOPENFILENAMEW file) {
 inline BOOL WINAPI fixtureMenu(HMENU menu, UINT flags, int, int, int, HWND owner, const RECT *) {
   contextProbe(owner);
   if(popupChoice!=-999){++popupCalls;
+    if(expectedDestination>=0)verifyDestinationMenu(menu,expectedDestination);
+    if(!expectedVcoLabels.empty()){
+      std::vector<std::string> leaves;std::vector<UINT>commands;
+      if(expectedVcoLabels.size()==66){
+        const char*folders[]={"FACTORY ROM","CORE MOTION","MODULATION","SPECTRAL MOTION","DIGITAL TONES","METAL && KEYS","HARMONY","SFX"};
+        check(GetMenuItemCount(menu)==8,"ROM folder inventory");
+        const int expectedCounts[]={36,4,5,4,3,4,5,5};
+        for(int group=0;group<8;++group){char folder[128]{};GetMenuStringA(menu,group,folder,sizeof folder,MF_BYPOSITION);check(std::string(folder)==folders[group],"ROM folder label/order");
+          auto child=GetSubMenu(menu,group);check(child&&GetMenuItemCount(child)==expectedCounts[group],"ROM folder leaf count");
+          for(int i=0;i<GetMenuItemCount(child);++i){char label[128]{};GetMenuStringA(child,i,label,sizeof label,MF_BYPOSITION);leaves.emplace_back(label);commands.push_back(GetMenuItemID(child,i));}
+        }
+      }else for(int i=0;i<GetMenuItemCount(menu);++i){char label[128]{};GetMenuStringA(menu,i,label,sizeof label,MF_BYPOSITION);leaves.emplace_back(label);commands.push_back(GetMenuItemID(menu,i));}
+      check(leaves==expectedVcoLabels,"VCO menu lost or reordered source-family identities");
+      for(size_t i=0;i<commands.size();++i)check(commands[i]==UINT(i+1),"VCO nested leaf command mapping");
+    }
     if(expectedLfoShape>=0){
       const char *labels[]={"SINE","TRI","SAW UP","SAW DN","SQUARE","PULSE","S&H","SMOOTH"};
       check(GetMenuItemCount(menu)==8,"LFO shape menu count");
@@ -53,7 +101,7 @@ inline BOOL WINAPI fixtureMenu(HMENU menu, UINT flags, int, int, int, HWND owner
       ++lfoShapeMenuChecks;
     }
     if(expectedSourcePosition>=0){
-      const char*labels[]={"OFF","LFO 1","LFO 2","LFO 3","LFO 4","EG1","EG2","Velocity","Key","Mod Wheel","Pressure","Pitch Bend","Note Random","Constant"};
+      const char*labels[]={"Off","LFO 1","LFO 2","LFO 3","LFO 4","EG1","EG2","Velocity","Key","Mod Wheel","Pressure","Pitch Bend","Note Random","Constant"};
       check(GetMenuItemCount(menu)==14,"Source menu count");
       for(int i=0;i<14;++i){char label[96]{};GetMenuStringA(menu,i,label,sizeof(label),MF_BYPOSITION);
         check(std::string(label)==labels[i]&&GetMenuItemID(menu,i)==UINT(i+1),"Source menu displayed order/command");

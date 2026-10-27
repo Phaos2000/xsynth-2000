@@ -3,7 +3,12 @@
 #include <algorithm>
 #include <cmath>
 namespace xs::oscillator {
-inline float wrap(float phase) { return phase-std::floor(phase); }
+// Shape remains normalized in state/automation. Only PULSE resolves to duty.
+inline constexpr float pulseDuty(float shape) {
+  constexpr float minimum=1.f/256;
+  return minimum+std::clamp(shape,0.f,1.f)*(1-2*minimum);
+}
+inline float wrap(float phase) { return phase>0&&phase<1?phase:phase-std::floor(phase); }
 inline float blep(float phase,float width) {
   if(width<=0)return 0;
   if(phase<width){float t=phase/width;return t+t-t*t-1;}
@@ -22,16 +27,26 @@ inline float blamp(float phase,float width) {
 inline float clean(float phase,float increment,int kind,float shape,float raw) {
   // Keep actual phase/frequency. The correction width follows its sampled fold,
   // rather than clamping the oscillator's frequency below Nyquist.
-  float dt=std::abs(increment-std::floor(increment+.5f));
+  float shifted=increment+.5f;
+  float dt=shifted>=0&&shifted<1?std::abs(increment):std::abs(increment-std::floor(shifted));
   if(kind==1)return raw-4*blamp(wrap(phase-.25f),dt)+4*blamp(wrap(phase-.75f),dt);
   if(kind==2)return raw-blep(phase,dt);
   if(kind==3)return raw+blep(phase,dt);
   if(kind>=4) {
-    shape=kind==4?.5f:std::clamp(shape,0.f,1.f);
-    if(shape<=0)return -1;
-    if(shape>=1)return 1;
+    shape=kind==4?.5f:pulseDuty(shape);
     return raw+blep(phase,dt)-blep(wrap(phase-shape),dt);
   }
   return raw;
+}
+// Correct the moving falling edge using its velocity relative to phase.
+// A fixed duty takes the old branch exactly. No control lag or phase reset.
+inline float foldedWidth(float increment) {
+  float shifted=increment+.5f;
+  return shifted>=0&&shifted<1?std::abs(increment):std::abs(increment-std::floor(shifted));
+}
+inline float movingPulse(float sample,float phase,float increment,float duty,float previousDuty) {
+  if(previousDuty<0||duty==previousDuty)return sample;
+  float edge=wrap(phase-duty);
+  return sample+blep(edge,foldedWidth(increment))-blep(edge,foldedWidth(increment-(duty-previousDuty)));
 }
 } // namespace xs::oscillator

@@ -1,5 +1,6 @@
 // GPL-2.0-or-later. Host-listening regressions and four independent LFO audit.
 #include "Core.h"
+#include "HistoricalState.h"
 #define xs before_xs
 #include "pre-four-lfo/Core.h"
 #undef xs
@@ -30,8 +31,8 @@ void check(bool b,const char*m){if(!b)throw std::runtime_error(m);}
 void configure(Engine&e,double sr){e.state=defaults();e.state[VoiceMode]=1;e.state[23]=.15;e.state[24]=.4;e.state[21]=.1;e.reset(sr);}
 void advance(Engine&e,int n){while(n--)check(std::isfinite(e.next()),"Nonfinite render");}
 void stateAndSources(){
- for(int version:{1,2,3,4,5}){State old=defaults();old[4]=.7;old[5]=.15;old[6]=.3;old[MatrixFirst]=.1;auto b=encode(old);int count=version<4?PreviousCount:version==4?PreUnisonCount:PreFourLfoCount;b[4]=uint8_t(version);b.resize(8+count*8);State restored;check(decode(b.data(),b.size(),restored),"Legacy state decode");check(restored[4]==.7&&restored[5]==.15,"LFO1 migration");for(int l=1;l<4;++l)check(restored[lfoParam(l,1)]==0&&restored[lfoParam(l,2)]==0,"Migration duplicated direct depths");for(int slot=6;slot<12;++slot)check(effectiveSource(restored,slot)==0&&restored[matrixId(slot,2)]==.5,"New route not neutral");}
- State state=defaults();for(int l=1;l<4;++l)for(int f=0;f<9;++f)state[lfoParam(l,f)]=stepped(lfoParam(l,f),.7);auto b=encode(state);State round;check(b[4]==6&&decode(b.data(),b.size(),round)&&round==state,"V6 roundtrip");
+ for(int version:{1,2,3,4,5}){State old=defaults();old[4]=.7;old[5]=.15;old[6]=.3;old[MatrixFirst]=.1;auto b=historicalState(old);int count=version<4?PreviousCount:version==4?PreUnisonCount:PreFourLfoCount;b[4]=uint8_t(version);b.resize(8+count*8);State restored;check(decode(b.data(),b.size(),restored),"Legacy state decode");check(restored[4]==.7&&restored[5]==.15,"LFO1 migration");for(int l=1;l<4;++l)check(restored[lfoParam(l,1)]==0&&restored[lfoParam(l,2)]==0,"Migration duplicated direct depths");for(int slot=6;slot<12;++slot)check(effectiveSource(restored,slot)==0&&restored[matrixId(slot,2)]==.5,"New route not neutral");}
+ State state=defaults();for(int l=1;l<4;++l)for(int f=0;f<9;++f)state[lfoParam(l,f)]=stepped(lfoParam(l,f),.7);auto b=encode(state);State round;check(b[4]==7&&decode(b.data(),b.size(),round)&&round==state,"V6 roundtrip");
  for(int slot=0;slot<12;++slot)for(int source=0;source<11;++source){Engine e;configure(e,48000);e.set(SourceExtensionFirst+slot,1);e.set(matrixId(slot),source/10.);check(effectiveSource(e.state,slot)==source,"Historical source rescaled or did not take precedence");e.set(SourceExtensionFirst+slot,1);e.set(matrixId(slot),source/10.);check(effectiveSource(e.state,slot)==source,"Repeated old source write");}
  std::cout<<"PASS V1-V5 migrations, V6 state, 12 source extensions and repeated historical /10 writes\n";
 }

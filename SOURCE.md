@@ -35,8 +35,9 @@ cmake -S expansion -B build -DREFERENCE_PLUGIN="C:/path/Xsynth.vst3/Contents/x86
 ctest --test-dir build -C Release --output-on-failure
 ```
 
-With all local fixtures this registers 24 tests; without the faithful binary the
-two binary-comparison tests are not registered. DSSI integration tests require
+Current main adds the source-aware routing and Wave-sharing regression suites.
+Without the faithful binary, the two binary-comparison tests are not registered.
+DSSI integration tests require
 the external corpus in addition to source. For a fresh public checkout without
 that corpus, run the self-contained suite with:
 
@@ -51,7 +52,7 @@ write their outputs under ignored build/artifact directories.
 
 ## Assets and historical scripts
 
-Production inputs port/FactoryData.h, port/TitleBitmap.h and
+Production inputs port/FactoryData.h, port/FactoryFamilies.h, assets/PreparedFactory.inc, factory/rom/ and port/TitleBitmap.h, plus
 assets/xsynth-title-native.png are intentionally checked in, with generators and
 original inputs. Python is not needed to build the plugin. Python 3 with Pillow
 can check the independently constructed wordmark:
@@ -66,3 +67,7 @@ are not invoked by the build above. Dated notes may mention original local audit
 paths; generated exports are not source dependencies. Current validation is
 summarized in expansion/docs/VALIDATION-CHECKPOINT.md. SDK revisions and notices
 remain in SDK-COMPONENTS.txt, VST3-SDK-LICENSE.txt and expansion/SDK_REVISION.txt.
+
+Factory ROM regeneration is optional and uses Python3 with NumPy. The normal C++ build embeds the checked-in prepared data and needs no Python. The original procedural formulas and recipes are in expansion/tools/rom/ and expansion/factory/rom/recipes/. No commercial reference WAVs or archives are included.
+
+Verify the current complete bank with: python expansion/tools/rom/rebuild_current.py --output build/rom-rebuild

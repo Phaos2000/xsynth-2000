@@ -1,6 +1,8 @@
 // GPL-2.0-or-later. Exercise the built VST3 through its public interfaces.
 #define NOMINMAX
 #include "Core.h"
+#include "ProtectState.h"
+#include <deque>
 #include "ProductIdentity.h"
 #include "pluginterfaces/base/ipluginbase.h"
 #include "pluginterfaces/gui/iplugview.h"
@@ -104,8 +106,9 @@ int main(int argc, char **argv) {
       check(controller->getParamNormalized(xs::hostId(i)) == state[i], "controller recall");
     MemoryStream saved;
     check(component->getState(&saved) == kResultOk, "save processor");
-    check(saved.getSize() == encoded.size() &&
-              std::memcmp(saved.getData(), encoded.data(), encoded.size()) == 0,
+    auto hostEncoded=xs::protect::encodeHost(state,{},false);
+    check(saved.getSize() == hostEncoded.size() &&
+              std::memcmp(saved.getData(), hostEncoded.data(), hostEncoded.size()) == 0,
           "serialized recall");
     ProcessSetup setup{};
     setup.processMode = kOffline;
@@ -113,6 +116,7 @@ int main(int argc, char **argv) {
     setup.maxSamplesPerBlock = 512;
     setup.sampleRate = 44100;
     check(processor->setupProcessing(setup) == kResultOk, "setup");
+    const int latency=int(processor->getLatencySamples());check(latency==76,"44100Hz protection latency");
     component->activateBus(kAudio, kOutput, 0, true);
     component->activateBus(kEvent, kInput, 0, true);
     auto render = [&](int blockSize) {
@@ -165,7 +169,7 @@ int main(int argc, char **argv) {
     check(a == b, "host block independence");
     double energy = 0;
     for (int i = 0; i < 2048; ++i) {
-      if (i < 37 || (i >= 700 && i < 900))
+      if (i < 37+latency || (i >= 700+latency && i < 900+latency))
         check(a[i] == 0, "sample accurate gate/event");
       energy += a[i] * a[i];
     }
@@ -179,7 +183,8 @@ int main(int argc, char **argv) {
     }
     IMidiMapping *mapping{};
     check(controller->queryInterface(IMidiMapping::iid.toTUID(),reinterpret_cast<void **>(&mapping))==kResultOk,"MIDI mapping interface");
-    ParamID pressure{};check(mapping->getMidiControllerAssignment(0,0,kAfterTouch,pressure)==kResultTrue && pressure==xs::hostId(xs::Pressure),"Pressure source mapping");mapping->release();
+    ParamID pressure{};check(mapping->getMidiControllerAssignment(0,0,kAfterTouch,pressure)==kResultTrue && pressure==xs::hostId(xs::Pressure),"Pressure source mapping");
+    for(int channel=0;channel<16;++channel)for(int cc:{64,66}){ParamID pedal{};check(mapping->getMidiControllerAssignment(0,int16(channel),CtrlNumber(cc),pedal)==kResultTrue&&pedal==xs::hostId(cc==64?xs::Sustain:xs::Sostenuto),"Pedal MIDI mapping");}mapping->release();
     {
       auto initial=xs::defaults();auto serialized=xs::encode(initial);
       MemoryStream restored(serialized.data(),serialized.size());
@@ -191,8 +196,12 @@ int main(int argc, char **argv) {
       ProcessData data{};data.numSamples=512;data.symbolicSampleSize=kSample32;data.numOutputs=1;data.outputs=&bus;data.inputEvents=&events;data.inputParameterChanges=&changes;
       check(processor->process(data)==kResultOk,"Continuous automation process");
       xs::Engine expected;expected.reset(44100);
-      for(int i=0;i<512;++i){expected.set(23,.5*(511-i)/512.);if(i==0)expected.note(60,true);check(std::abs(left[i]-expected.next())<1.e-7,"VST3 implicit -1 point ramp mismatch");}
-      check(left[511]==0,"Continuous ramp final point");
+      std::deque<float> delayed(latency,0);
+      for(int i=0;i<512;++i){expected.set(23,.5*(511-i)/512.);if(i==0)expected.note(60,true);delayed.push_back(expected.next());check(std::abs(left[i]-delayed.front())<1.e-7,"VST3 implicit -1 point ramp mismatch after PDC delay");delayed.pop_front();}
+      data.numSamples=latency+1;data.inputEvents=nullptr;data.inputParameterChanges=nullptr;
+      check(processor->process(data)==kResultOk,"Continuous automation drain");
+      for(int i=0;i<latency+1;++i){delayed.push_back(expected.next());check(std::abs(left[i]-delayed.front())<1.e-7,"Delayed ramp drain");delayed.pop_front();}
+      check(left[latency-1]==0&&left[latency]==0,"Continuous ramp final point after PDC delay");
       processor->setProcessing(false);component->setActive(false);
       // Controller values used by the GUI remain an independent host-owned view.
       MemoryStream ui(serialized.data(),serialized.size());controller->setComponentState(&ui);
@@ -206,8 +215,9 @@ int main(int argc, char **argv) {
         check(component->setState(&restored)==kResultOk,"Modern fixture restore");
         component->setActive(true);processor->setProcessing(true);
         xs::Engine expected;expected.state=initial;expected.reset(44100);
+        std::deque<float> delayed(latency,0);
         int legacy=xs::legacyDestinationId(slot),extension=xs::ExpandedDestinationFirst+slot;
-        for(int pass=0;pass<3;++pass){
+        for(int pass=0;pass<3+(latency+block-1)/block;++pass){
           ParameterChanges changes;int32 point=0;
           // Insert legacy queue first: equal-offset precedence must be independent of queue order.
           if(!expanded)changes.addParameterData(xs::hostId(legacy),point)->addPoint(block-1,destination/17.,point);
@@ -220,7 +230,8 @@ int main(int argc, char **argv) {
             if(sample==0)expected.set(extension,expanded?(destination+1)/41.:1.);
             if(!expanded && sample==block-1)expected.set(legacy,destination/17.);
             if(pass==0&&sample==0)expected.note(60,true,.7);
-            check(std::abs(l[sample]-expected.next())<1.e-7,"Destination queue timing/audio mismatch");
+            delayed.push_back(expected.next());
+            check(std::abs(l[sample]-delayed.front())<1.e-7,"Destination queue timing/audio mismatch after PDC delay");delayed.pop_front();
           }
           MemoryStream saved;component->getState(&saved);xs::State actual{};
           check(xs::decode(reinterpret_cast<const uint8_t*>(saved.getData()),saved.getSize(),actual),"Automation state read");
@@ -315,3 +326,4 @@ int main(int argc, char **argv) {
     return 1;
   }
 }
+

@@ -50,8 +50,8 @@ int main() {
               ui::SavePatch.x - ui::LoadPatch.x - ui::LoadPatch.w == ui::HeaderGap &&
               ui::HeaderRight - ui::SavePatch.x - ui::SavePatch.w == ui::HeaderGap,
           "Repeated right header gaps");
-    check(ui::ThemeButton.x * 2 + ui::ThemeButton.w == 960 &&
-              ui::ThemeButton.y >= ui::CreditY[11] + 16 + 16,
+    check(ui::ThemeButton.x * 2 + ui::ThemeButton.w == xs::NativeWidth &&
+              ui::ThemeButton.y >= ui::CreditY[12] + 16 + 16,
           "Theme separation/center");
     check(ui::ThemeButton.y + ui::ThemeButton.h == 504, "Theme bottom margin");
     check(ui::CreditY[2]+16<=ui::AboutEmailY && ui::AboutEmailY+16<=ui::CreditY[3],
@@ -85,21 +85,21 @@ int main() {
       ++edits;
     };
     HWND child = editor.open(parent);
-    capture(child, 960, 568);
+    capture(child, xs::NativeWidth, 568);
     click(child,ui::PresetNext.x+12,28);
     check(factory::sameSound(state,factory::initState()),"INIT before first factory");
     for (int index = 0; index < factory::Count; ++index) {
       click(child, ui::PresetNext.x + 12, 28);
-      check(factory::sameSound(state, factory::Presets[index].state), "Next preset state");
+      check(factory::sameSound(state, factory::presetState(index)), "Next preset state");
     }
     click(child, ui::PresetNext.x + 12, 28);
     check(factory::sameSound(state, factory::initState()), "Bank wrap");
     click(child, ui::PresetPrevious.x + 12, 28);
-    check(factory::sameSound(state, factory::Presets[factory::Count - 1].state),
+    check(factory::sameSound(state, factory::presetState(factory::Count - 1)),
           "Previous bank wrap");
     for (int i = 49; i > 36; --i)
       click(child, ui::PresetPrevious.x + 12, 28);
-    check(factory::sameSound(state, factory::Presets[36].state),
+    check(factory::sameSound(state, factory::presetState(36)),
           "Longest-title production selection");
     int minimumX = title::Width, minimumY = title::Height, maximumX = 0, maximumY = 0;
     for (int y = 0; y < title::Height; ++y)
@@ -116,7 +116,7 @@ int main() {
           "Actual logo bounds differ from geometry");
     for (int percent : {100, 125, 150, 200}) {
       double scale = percent / 100.;
-      int width = 960 * percent / 100, height = 568 * percent / 100;
+      int width = xs::NativeWidth * percent / 100, height = 568 * percent / 100;
       editor.resize(width, height);
       HDC metrics = CreateCompatibleDC(nullptr);
       auto measuredFont =
@@ -183,7 +183,7 @@ int main() {
         DeleteDC(dc);
         auto before = state;
         int beforeEdits = edits;
-        click(child, 480, 492, scale);
+        click(child, xs::ui::ThemeButton.x+xs::ui::ThemeButton.w/2, xs::ui::ThemeButton.y+xs::ui::ThemeButton.h/2, scale);
         check(unsigned(editor.currentTheme()) == (theme + 1) % theme::Count && state == before &&
                   edits == beforeEdits,
               "Theme button changes sound or failed cycle");

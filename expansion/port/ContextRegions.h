@@ -24,7 +24,7 @@ inline int panelAt(int x, int y, int width, int height) {
   return -1;
 }
 inline constexpr int menuForPanel(int panel) {
-  return panel == 0 ? 0 : panel == 2 ? 1 : panel == 7 ? 2 : panel == 8 ? 3 : -1;
+  return panel == 0 ? 0 : panel == 2 ? 1 : panel == 8 ? 2 : panel == 9 ? 3 : -1;
 }
 inline int sectionAt(int x, int y, int width, int height) {
   return menuForPanel(panelAt(x, y, width, height));

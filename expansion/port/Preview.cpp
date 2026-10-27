@@ -1,12 +1,17 @@
 #include "Editor.h"
 #include "Version.h"
-#include "FactoryData.h"
+#include "PresetBrowser.h"
 #include "InitState.h"
 #include <string>
 #include <shellapi.h>
 int WINAPI wWinMain(HINSTANCE h, HINSTANCE, LPWSTR, int) {
-  xs::State state = xs::defaults();
+  xs::State state = xs::newInstanceState();
+  xs::table::Document assets;
   xs::Editor editor(nullptr); // Snapshot tooling never reads/writes user preferences.
+  bool protect=true;
+  editor.readProtect=[&]{return protect;};
+  editor.changeProtect=[&](bool on){protect=on;return true;};
+  editor.readAssets=[&]{return assets;};
   editor.read = [&] { return state; };
   editor.begin = editor.end = [](int) {};
   editor.change = [&](int i, double n) { state[i] = n; };
@@ -33,15 +38,35 @@ int WINAPI wWinMain(HINSTANCE h, HINSTANCE, LPWSTR, int) {
     const double amount[]={.5625,.75,.65,.8,.6,.7};
     for(int slot=0;slot<6;++slot){int id=xs::MatrixFirst+slot*3;state[id]=source[slot]/10.;state[id+1]=destination[slot]/double(xs::LegacyDestinationCount-1);state[id+2]=amount[slot];}
   }
-  for(int i=1;i<argc;++i)if(std::wcscmp(argv[i],L"--preset")==0&&i+1<argc){int index=_wtoi(argv[++i]);if(index>=0&&index<xs::factory::Count)state=xs::factory::Presets[index].state;}
+  for(int i=1;i<argc;++i)if(std::wcscmp(argv[i],L"--preset")==0&&i+1<argc){int index=_wtoi(argv[++i]);if(index>=0&&index<xs::factory::Count)state=xs::factory::presetState(index);}
   for(int i=1;i<argc;++i)if(std::wcscmp(argv[i],L"--init")==0)state=xs::factory::initState();
+  for(int i=1;i<argc;++i)if(std::wcscmp(argv[i],L"--distortion")==0&&i+1<argc){int mode=_wtoi(argv[++i]);if(mode>=0&&mode<=10){state[xs::DistMode]=mode/10.;state[xs::DistDrive]=.65;state[xs::DistMix]=.7;}}
+  for(int i=1;i<argc;++i){if(!std::wcscmp(argv[i],L"--limit-invalid")){state[xs::Loop2]=1;state[xs::Eg2Sync]=1;state[xs::Eg2Rate]=1;state[15]=state[16]=state[18]=.7;}if(!std::wcscmp(argv[i],L"--filter-b"))editor.selectedFilter=1;if(!std::wcscmp(argv[i],L"--features")){state[xs::Loop2]=1;state[xs::Eg2Sync]=2./3;state[xs::VcfRoute]=.5;}}
+  bool programmer=false;
+  for(int i=1;i<argc;++i){if(!std::wcscmp(argv[i],L"--programmer"))programmer=true;
+    if(!std::wcscmp(argv[i],L"--wavetable")&&i+1<argc){std::wstring mode=argv[++i];
+      if(mode==L"analytic"){state[xs::RasterFirst]=1;state[24]=.4;state[xs::Engine2]=1;}
+      else{for(int o=0;o<2;++o){state[xs::oscParam(o,0)]=mode==L"user"?1:.5;state[xs::oscParam(o,1)]=(o?8:32)/65535.;state[xs::oscParam(o,3)]=.35;state[xs::oscParam(o,4)]=1;state[xs::oscParam(o,5)]=1;}
+        if(mode==L"mixed")state[xs::oscParam(0,0)]=0;
+        if(mode==L"user"){std::vector<float>samples(128*16);for(int f=0;f<16;++f)for(int n=0;n<128;++n)samples[f*128+n]=float(.6*std::sin(2*xs::Pi*n/128)+.2*(f/15.)*std::sin(2*xs::Pi*5*n/128));assets.slots[0]=xs::table::prepareUser(std::move(samples),128,16,"USER DEMO");}
+      }
+    }
+  }
+  // Deterministic documentation capture: select a verified factory identity.
+  for(int i=1;i+1<argc;++i)if(!std::wcscmp(argv[i],L"--rom-id")||!std::wcscmp(argv[i],L"--rom2-id")){
+    int o=!std::wcscmp(argv[i],L"--rom2-id"),id=_wtoi(argv[++i]);bool found=false;
+    for(const auto&t:xs::table::factoryBank().tables)found|=t.id==id;
+    if(!found){LocalFree(argv);return 2;}
+    state[xs::oscParam(o,0)]=.5;state[xs::oscParam(o,1)]=id/65535.;
+    state[xs::oscParam(o,3)]=.35;state[xs::oscParam(o,4)]=1;state[xs::oscParam(o,5)]=1;
+  }
   if (argc >= 3 && std::wcscmp(argv[1], L"--snapshot") == 0) {
     bool dither = true, about = false;
     for (int i = 4; i < argc; ++i) {
       if (std::wcscmp(argv[i], L"--no-dither") == 0) dither = false;
       if (std::wcscmp(argv[i], L"--about") == 0) about = true;
     }
-    bool ok = editor.snapshot(
+    bool ok = programmer?editor.snapshotProgrammer(argv[2]):editor.snapshot(
         argv[2], argc > 3 ? _wtoi(argv[3]) : 100, dither, about);
     LocalFree(argv);
     return ok ? 0 : 1;

@@ -3,6 +3,7 @@
 #include "ContextRegions.h"
 #include "UiGeometry.h"
 #include "SelectorKind.h"
+#include "FeatureControls.h"
 #include <commdlg.h>
 #include <fstream>
 #include <iostream>
@@ -13,7 +14,7 @@ void check(bool b, const char *m) {
     throw std::runtime_error(m);
 }
 int popups = 0, command = 0, expectedSection = -1;
-bool inject = false;
+bool inject = false, expectedChildMenu = false;
 HWND editorWindow{};
 void right(HWND w, int x, int y) { SendMessageW(w, WM_RBUTTONUP, 0, MAKELPARAM(x, y)); }
 void probeModal() {
@@ -29,6 +30,7 @@ BOOL WINAPI popup(HMENU menu, UINT flags, int, int, int, HWND, const RECT *) {
     probeModal();
     return 0;
   }
+  if(expectedChildMenu){check((flags & TPM_RIGHTBUTTON)==0,"Child opened module menu");return 0;}
   check((flags & TPM_RIGHTBUTTON) != 0 && expectedSection >= 0, "Wrong popup route");
   int count = GetMenuItemCount(menu);
   check(count == (expectedSection < 2 ? 8 : 7), "Wrong section menu model");
@@ -114,8 +116,8 @@ int main(int argc, char **argv) {
     Imports imports;
     std::ofstream table(argc > 1 ? argv[1] : "context-regions.csv");
     table << "region,x,y,width,height,layout,menu,overlap\n";
-    constexpr int menus[] = {0, -1, 1, -1, -1, -1, -1, 2, 3, -1, -1};
-    constexpr const char *names[] = {"VCO1", "XMOD", "VCO2", "MIXER", "VCF",   "AMP",
+    constexpr int menus[] = {0, -1, 1, -1, -1, -1, -1, -1, 2, 3, -1, -1};
+    constexpr const char *names[] = {"VCO1", "XMOD", "VCO2", "MIXER", "VCF", "DISTORTION", "AMP",
                                      "LFO",  "EG1",  "EG2",  "VOICE", "MATRIX"};
     auto parent = CreateWindowW(L"STATIC", L"Context audit", WS_POPUP, 0, 0, 1920, 1136, nullptr,
                                 nullptr, nullptr, nullptr);
@@ -165,15 +167,35 @@ int main(int argc, char **argv) {
       auto dispatch = [&](int x, int y) {
         int owner = (x < 0 || y < 0 || x >= width || y >= height) ? -1 : paint[y * width + x];
         expectedSection = owner < 0 ? -1 : menus[owner];
-        const Control *cycle=nullptr;int lx=int(x/scale),ly=int(y/scale)-48;
-        for(const auto&c:mainControls)if((c.kind==ControlKind::Selector||c.kind==ControlKind::Toggle)&&!isDropdown(c,state)&&
-          lx>=c.x&&lx<c.x+c.w&&ly>=c.y&&ly<c.y+(c.kind==ControlKind::Toggle?22:18)){cycle=&c;break;}
-        auto prior=state;if(cycle)expectedSection=-1;
+        // Independent painted-pixel ownership oracle, including fractional-DPI borders.
+        auto inside=[&](Bounds b){int l=int(std::round(b.x*scale)),r=int(std::round((b.x+b.w)*scale));
+          int t=int(std::round((b.y+48)*scale)),d=int(std::round((b.y+b.h+48)*scale));
+          return x>=l&&x<r&&y>=t&&y<d;};
+        const Control *cycle=nullptr;bool child=false;expectedChildMenu=false;
+        for(int o=0;o<2;++o){
+          if(inside(vcoGrid::sourceMode(o))){child=true;break;}
+          if(inside(vcoGrid::wave(o))){child=true;expectedChildMenu=discrete(oscParam(o,0),state[oscParam(o,0)])==0||
+              inside(vcoGrid::source(o))||inside(vcoGrid::table(o));break;}
+          if(inside({vcoGrid::left(o),vcoGrid::Row2,vcoGrid::Width,vcoGrid::Height})){child=true;break;}
+        }
+        for(int i=0;i<4&&!child;++i)if(inside(lfoTabs::bounds(i)))child=true;
+        for(int i=0;i<2&&!child;++i)if(inside(vcfTabs::hit(i)))child=true;
+        if(!child)for(const auto&c:mainControls){
+          if(c.id==24||c.id==25||c.id==Engine1||c.id==Engine2)continue;
+          if((c.kind==ControlKind::Selector||c.kind==ControlKind::Toggle)&&inside({c.x,c.y,c.w,c.kind==ControlKind::Toggle?22:18})){
+            child=true;expectedChildMenu=isDropdown(c,state);if(!expectedChildMenu)cycle=&c;break;}
+        }
+        if(!child)for(const auto&c:matrixControls())if((matrixSource(c.id)||matrixDestination(c.id))&&inside({c.x,c.y,c.w,18})){
+          child=true;expectedChildMenu=true;break;
+        }
+        auto prior=state;if(child)expectedSection=-1;
         int before = popups;
         right(editorWindow, x, y);
-        if(cycle){int id=effectiveId(*cycle,prior),count=selectorCount(*cycle,prior);check(discrete(id,state[id])==(discrete(id,prior[id])+count-1)%count,"Right button did not reverse");state=prior;}
-        check(popups - before == (expectedSection >= 0 ? 1 : 0),
+        if(cycle){int id=effectiveId(*cycle,prior),count=selectorCount(*cycle,prior);if(id==Loop2){if(prior[Loop2]!=0)check(features::cycle(state)==(features::cycle(prior)+1)%2,"Cycle reverse");else check(state==prior,"OFF Cycle edited audio");}else if(id==Eg2Sync)check(features::loopMode(state)==(features::loopMode(prior)+4)%5,"Loop mode reverse");else check(discrete(id,state[id])==(discrete(id,prior[id])+count-1)%count,"Right button did not reverse");}
+        state=prior;
+        check(popups - before == ((expectedChildMenu||expectedSection>=0)?1:0),
               "Production right-click dispatch mismatch");
+        expectedChildMenu=false;
         ++eventSamples;
       };
       for (int y = 0; y < height; ++y)
@@ -209,12 +231,17 @@ int main(int argc, char **argv) {
       }
       for (auto &c : matrixControls())
         dispatch(int(std::round((c.x + c.w / 2) * scale)), int(std::round((c.y + 48 + 9) * scale)));
+      auto fieldEdges=[&](Bounds b){int l=int(std::round(b.x*scale)),r=int(std::round((b.x+b.w)*scale));
+        int t=int(std::round((b.y+48)*scale)),d=int(std::round((b.y+b.h+48)*scale));
+        for(int x:{l-1,l,r-1,r})for(int y:{t-1,t,d-1,d})dispatch(x,y);};
+      for(int o=0;o<2;++o)for(auto b:{vcoGrid::sourceMode(o),vcoGrid::wave(o),vcoGrid::sample(o),vcoGrid::frame(o)})fieldEdges(b);
+      for(auto c:mainControls)if(c.kind==ControlKind::Selector||c.kind==ControlKind::Toggle)fieldEdges(fieldBounds(c));
       dispatch(-1, -1);
       dispatch(width, height);
       dispatch(-1, height / 2);
       dispatch(width, 0);
       // Each active menu followed by every header pixel: owner must never persist.
-      for (int i : {0, 2, 7, 8}) {
+      for (int i : {0, 2, 8, 9}) {
         auto b = context::pixels(panels[i], scale);
         dispatch(b.x + b.w / 2, b.y + 12);
         for (int x = 0; x < width; ++x)
@@ -233,19 +260,16 @@ int main(int argc, char **argv) {
                    "About routing\n";
     }
     table << "GLOBAL HEADER,0,0,960,48,header,NO MODULE CONTEXT,none\n";
-    editor.resize(960, 568);edits=0;
+    editor.resize(NativeWidth, NativeHeight);edits=0;
     // THEME must never dismiss About, across an entire six-theme cycle.
     click(editorWindow,60,24);int themeMenus=popups;auto themeState=state;
-    for(int i=0;i<6;++i){click(editorWindow,480,492);probeModal();check(popups==themeMenus,"THEME dismissed About");}
+    for(int i=0;i<6;++i){click(editorWindow,xs::ui::ThemeButton.x+xs::ui::ThemeButton.w/2,xs::ui::ThemeButton.y+xs::ui::ThemeButton.h/2);probeModal();check(popups==themeMenus,"THEME dismissed About");}
     check(state==themeState,"THEME changed synth state");click(editorWindow,60,24);
     check(edits == 0, "Cancelled context menus changed parameters");
     // Existing actions identify oscillator/envelope ownership using actual state edits.
-    constexpr int ids[4][9] = {{0, 1, 24, Engine1, -1, -1, -1, -1, -1},
-                               {2, 3, 25, Engine2, -1, -1, -1, -1, -1},
-                               {9, 10, 11, 12, Curve1, Velocity1, 13, 14, -1},
-                               {15, 16, 17, 18, Curve2, Velocity2, 19, 20, Loop2}};
+    constexpr int ids[4][11]={{0,1,24,Engine1,147,148,149,150,151,152,RasterFirst},{2,3,25,Engine2,153,154,155,156,157,158,RasterFirst+1},{9,10,11,12,Curve1,Velocity1,13,14,-1,-1,-1},{15,16,17,18,Curve2,Velocity2,19,20,Loop2,Eg2Sync,Eg2Rate}};
     for (int section = 0; section < 4; ++section) {
-      int panel = section == 0 ? 0 : section == 1 ? 2 : section == 2 ? 7 : 8;
+      int panel = section == 0 ? 0 : section == 1 ? 2 : section == 2 ? 8 : 9;
       auto b = context::pixels(panels[panel], 1);
       expectedSection = section;
       state.fill(.317);
@@ -274,7 +298,7 @@ int main(int argc, char **argv) {
           check(state[id] == stepped(id, .41), "Copy/Paste semantics changed");
       command = 3;
       right(editorWindow, b.x + 20, b.y + 20);
-      int other = section ^ 1, count = other < 2 ? 4 : other == 2 ? 8 : 9;
+      int other = section ^ 1, count = other < 2 ? 11 : other == 2 ? 8 : 11;
       for (int i = 0; i < count; ++i)
         check(state[ids[other][i]] ==
                   stepped(ids[other][i], ids[section][i] < 0 ? defaults()[ids[other][i]] : .41),
@@ -287,7 +311,7 @@ int main(int argc, char **argv) {
     inject = true;
     click(editorWindow, 550, 28); // Factory popup.
     inject = true;
-    click(editorWindow, 70, 459); // Existing long oscillator Wave popup.
+    click(editorWindow, 70, xs::MatrixFirstRow+48+8); // Existing long oscillator Wave popup.
     inject = true;
     click(editorWindow, 770, 28); // Load menu.
     click(editorWindow, 880, 28); // Native save picker (returns Cancel).
@@ -318,3 +342,4 @@ int main(int argc, char **argv) {
     return 1;
   }
 }
+
