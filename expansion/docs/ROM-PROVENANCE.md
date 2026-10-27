@@ -4,7 +4,11 @@ The factory bank is original procedural material distributed with the project's 
 
 Commercial wavetable archives were used only as a private aggregate research pool to assess variety and motion categories. No archive, commercial sample, extracted table, fitted coefficient set or direct waveform conversion is included here. The new constructions use independent mathematical formulas and original names.
 
-`factory/rom/baseline36.xrom` preserves the original approved bank. `tools/rom/original_expansion.py` defines the 30 additions. Recipes, source-cycle normalization and table identities are recorded in `factory/rom/recipes/tables.json`. Listening acceptance is separate from permission to publish the development source.
+`factory/rom/baseline36.xrom` preserves the original approved bank. `tools/rom/original_expansion.py` defines the 33 additions. Recipes, source-cycle normalization and table identities are recorded in `factory/rom/recipes/tables.json`. Listening acceptance is separate from permission to publish the development source.
+
+The three EDO tables use original compact carriers and a pitch map in `port/PositionTuning.h`: ratio = 2^(degree/divisions), with degree the nearest integer to Position times19,24 or31. All scale steps and the octave are available independently of the16 timbre frames. The pitch map is restricted to factory IDs66–68; USER slots and the older66 IDs are unaffected. It uses stored double ratios and no audio-thread allocation or exponential calculation. These are per-oscillator Position scales, not global keyboard retuning or Scala/`.tun` import.
+
+19-,24- and31-tone equal divisions are established systems used by the Huygens-Fokker Foundation's [Ensemble SCALA](https://huygens-fokker.org/en/ensemble-scala/). This is a basis for the selection, not a claim of a measured popularity ranking. No imported tuning files or third-party waveform data were used.
 
 The normal build embeds checked-in prepared playback data. To verify the complete encoded bank and prepared data from the original baseline and formulas, using Python 3 with NumPy:
 

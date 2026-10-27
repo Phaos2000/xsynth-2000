@@ -9,6 +9,7 @@ struct Selection {
   float gain=1;
   Sample sample=Sample::Hold; Frame frame=Frame::Step;
   int root()const{return source&&data?data->rootBin:1;}
+  double positionFrequency(double hz,float position)const{return source==1&&data?positionTuning::frequency(data->id,hz,position):hz;}
   bool operator==(const Selection&b)const{return data==b.data&&source==b.source&&wave==b.wave&&renderer==b.renderer&&owner==b.owner&&gain==b.gain&&sample==b.sample&&frame==b.frame;}
   bool operator!=(const Selection&b)const{return !(*this==b);}
 };
@@ -21,6 +22,7 @@ struct Oscillator {
     std::array<float,4> previousPulseDuty{{-1,-1,-1,-1}};
     void assign(Selection c){selection=c;previousPulseDuty.fill(-1);lastHz=lastSr=lastRootHz=lastClockSr=-1;lastPosition=-1;}
     template<class Analytic> float read(int path,double hz,float pm,float position,float shape,double sr,bool&wrapped,Analytic analytic,bool silent=false){
+      hz=selection.positionFrequency(hz,position);
       if(hz!=lastRootHz||sr!=lastClockSr){cycleHz=hz/selection.root();increment=cycleHz/sr;lastRootHz=hz;lastClockSr=sr;}
       double frequency=cycleHz,advanced=phase[path]+increment;
       wrapped=advanced>=1||advanced<0;

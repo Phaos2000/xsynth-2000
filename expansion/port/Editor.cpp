@@ -401,7 +401,7 @@ struct Editor::Impl {
     if(id==Voices){std::snprintf(out,size,"%d",voiceCount(s));return;}
     if(id==Unison){int request=UnisonCounts[discrete(Unison,s[Unison])],limit=voiceCount(s);if(request>limit){std::snprintf(out,size,"%d (%d eff)",request,limit);return;}}
     if(matrixSource(id)){std::snprintf(out,size,"%s",sourceMenu::label(effectiveSource(s,matrixSlot(id))));return;}
-    if(matrixDestination(id)){std::snprintf(out,size,"%s",effectiveSource(s,matrixSlot(id))?Destinations[routeDestination(s,matrixSlot(id))]:"Off");return;}
+    if(matrixDestination(id)){std::snprintf(out,size,"%s",Destinations[routeDestination(s,matrixSlot(id))]);return;}
     if(id>=ExtraLfoFirst&&id<NewMatrixFirst){State proxy=s;int l=(id-ExtraLfoFirst)/9+1;for(int f=0;f<9;++f)proxy[LfoBaseIds[f]]=s[lfoParam(l,f)];valueText(lfoBase(id),proxy,out,size);return;}
     // Keep fine depth edits visible without rounding the stored/automated value.
     if(id==5 || id==6 || id==13 || id==14 || id==19 || id==20) {
@@ -489,7 +489,7 @@ struct Editor::Impl {
           if(source==1&&!wheel){
             HMENU rootMenu=CreatePopupMenu();std::vector<std::string>folderNames;std::vector<HMENU>folders;
             for(size_t displayed=0;displayed<romOrder.size();++displayed){const auto&t=table::factoryBank().tables[romOrder[displayed]];
-              std::string folder=t.id<36?"FACTORY ROM":table::FamilyNames[t.familyId];
+              std::string folder=romMenu::CategoryNames[romMenu::category(t)];
               auto found=std::find(folderNames.begin(),folderNames.end(),folder);size_t group=size_t(found-folderNames.begin());
               if(found==folderNames.end()){folderNames.push_back(folder);HMENU child=CreatePopupMenu();folders.push_back(child);std::string caption;for(char c:folder){caption+=c;if(c=='&')caption+='&';}AppendMenuA(rootMenu,MF_POPUP,UINT_PTR(child),caption.c_str());}
               AppendMenuA(folders[group],MF_STRING|(int(displayed)==current?MF_CHECKED:0),displayed+1,t.name.data());
@@ -582,7 +582,7 @@ struct Editor::Impl {
     int count=selectorCount(c,state),current=id==Voices?voiceChoice(state):destination?routeDestination(state,slot):source?sourceMenu::position(effectiveSource(state,slot)):wave?lfoShapeIndex(id,state):discrete(id,state[id]);
     int chosen=destination?destinationMenu::step(current,direction,true):(current+direction+count)%count;
     if(isDropdown(c,state)){
-      HMENU menu=destination?destinationMenu::createMenu(current,effectiveSource(state,slot)==0):CreatePopupMenu();
+      HMENU menu=destination?destinationMenu::createMenu(current):CreatePopupMenu();
       for(int i=0;!destination&&i<count;++i){char label[96]{};
         if(source)std::snprintf(label,sizeof label,"%s",sourceMenu::label(sourceMenu::identity(i)));
         else if(destination)std::snprintf(label,sizeof label,"%s",Destinations[i]);

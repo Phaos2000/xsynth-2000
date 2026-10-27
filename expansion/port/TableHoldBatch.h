@@ -8,8 +8,9 @@ namespace xs::table {
 struct HoldBatch {
  template<int N> struct Plan {Oscillator::Head**heads;const Table*table;FrameChoice frames;float position,gain;bool assigned=false;};
  template<int N> P8_INLINE static Plan<N> prepare(Oscillator::Head**heads,__m128 frequency,float position,double sr){
-  alignas(16)float hz[4];_mm_store_ps(hz,frequency);
+  alignas(16)float inputHz[4];_mm_store_ps(inputHz,frequency);double hz[4]{};
   const auto&selection=heads[0]->selection;const auto&t=*selection.data;double root=selection.root();
+  for(int i=0;i<N;++i)hz[i]=selection.positionFrequency(inputHz[i],position);
     // Two independent IEEE double divisions per pair, never a reciprocal.
     for(int i=0;i<N;i+=2){bool second=i+1<N;auto&a=*heads[i];
       bool change=hz[i]!=a.lastRootHz||sr!=a.lastClockSr;

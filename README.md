@@ -4,7 +4,7 @@
 
 **Windows x64 VST3 · Developed by Phaos**
 
-[Website](https://phaos.neocities.org/) · [Email](mailto:phaos2000@pm.me) · [Latest release](https://github.com/Phaos2000/xsynth-2000/releases/tag/v0.1.2)
+[Website](https://phaos.neocities.org/) · [Email](mailto:phaos2000@pm.me) · [Latest release](https://github.com/Phaos2000/xsynth-2000/releases/tag/v0.1.3)
 
 Xsynth 2000 is a digital synthesizer developed from Steve J. Brookes' **Xsynth 1.0.2 (1999)**.
 
@@ -12,17 +12,20 @@ What began as a Windows VST3 port grew into a substantially expanded instrument,
 
 ![Current development interface, STEEL theme](expansion/assets/xsynth-2000-current.png)
 
-*Xsynth 2000 v0.1.2, STEEL theme. Download the Windows plugin from the latest release.*
+*Xsynth 2000 v0.1.3, STEEL theme. Download the Windows plugin from the latest release.*
 
 ## To-Do / Being done
 
 Completed in the current development source on `main`:
 
 - [x] Distortion module: ten algorithms, PRE / POST placement and extended Drive range.
-- [x] Factory wavetable bank and folders: 66 tables, including 30 original additions, chord/scale voicings and dedicated SFX.
+- [x] Factory wavetable bank and folders: 69 tables, including 33 original additions, chord/scale voicings and dedicated SFX.
 - [x] USER waveform slots and native-patch embedding.
 - [x] Stereo Unison width and selectable voice budgets up to 64 members.
 - [x] Combined VCO Shape / Position modulation destinations.
+- [x] Audible harmony voicing/scale movement, stronger RAIL STEPS states and a clearer played-note anchor in TILT CLUSTER.
+- [x] One shared set of factory folders in both waveform browsers; destinations display correctly while Source is OFF.
+- [x] 19-, 24- and 31-EDO Harmony tables: Position ascends through every scale step over one octave.
 - [x] EG2 tempo sync and dual-filter routing.
 - [x] Targeted fix for the supplied Wave-modulation CPU spike: about 57% less processing in the paired different-note replay, with identical audio.
 
@@ -31,8 +34,9 @@ Still open:
 - [ ] Complete manual listening and level/variety review of the revised factory bank, especially its five harmony voicings.
 - [ ] Continue targeted voice/CPU optimization where real-host testing identifies remaining hotspots.
 - [ ] Maybe some more filter types...
+- [ ] Scala and `.tun` file support for keyboard tuning.
 
-The v0.1.2 package includes the completed work above; real-host and listening acceptance remain open as listed. See [current development validation](expansion/docs/CURRENT-DEVELOPMENT.md) for measured scope.
+The v0.1.3 package includes the completed work above; real-host and listening acceptance remain open as listed. See [current development validation](expansion/docs/CURRENT-DEVELOPMENT.md) for measured scope.
 
 ## Instrument
 
@@ -58,7 +62,10 @@ Xsynth 2000 has two oscillators, each with **CLASSIC**, **CLEAN** and **RASTER**
 - Selectable **1 / 2 / 4 / 8 / 16 / 32 / 64 physical-voice budgets**
 - Unison OFF / 2 / 4 / 8 with dynamic group normalization
 - Glide, pitch bend and master tuning
-- **66 factory wavetables** in folders, including five chord/scale voicings and dedicated SFX
+- **69 factory wavetables** in folders, including five chord/scale voicings, three microtonal scale tables and dedicated SFX
+- Nine shared factory folders: SPECTRAL, PULSE, FORMANT, DIGITAL, MODULATION, INSTRUMENTS, PAD, HARMONY and SFX
+- Harmony Position moves through rising, falling or returning voicings and pentatonic lines while retaining the approved opening sounds
+- 19 EDO RISE, 24 EDO RISE and 31 EDO RISE transpose through their complete octave scales as Position rises; both STEP and MORPH retain precise scale steps
 - Sixteen wavetable frames, HOLD / LINEAR / BAND reading and STEP / MORPH Position
 - Sixteen USER waveform slots with native-patch embedding
 - Ten distortion algorithms with PRE / POST placement and 0–200% Drive
@@ -91,7 +98,8 @@ Xsynth 2000 retains Steve Brookes' original work as its historical and code foun
 | Oscillators | 2 oscillators, pitch, balance and sync | 2 oscillators with WAVE / ROM / USER sources, −24 to +24 semitone tuning, FM, PM and hard sync |
 | Oscillator rendering | Original direct digital rendering | Independent CLASSIC / CLEAN / RASTER engines; CLASSIC retains the original digital character |
 | Oscillator mixing | Balance | BAL, SUM, RING, AM, XOR and DIFF |
-| Factory wavetables | No wavetable bank | 66 tables in folders, with 16 frames each; includes five harmony voicings and dedicated SFX with three digital noise characters |
+| Factory wavetables | No wavetable bank | 69 tables in nine shared folders, with 16 timbre frames each; includes five harmony voicings, three microtonal scales and dedicated SFX with three digital noise characters |
+| Microtonal Position | No microtonal scale tables | Complete 19-, 24- and 31-EDO octave ascents in Harmony; scale pitch is precise and independent of timbre-frame interpolation. Scala/`.tun` keyboard import is planned |
 | Wavetable motion | No wavetable Position control | HOLD / LINEAR / BAND reading; STEP / MORPH Position, with modulation of Position |
 | User waveforms | No USER wavetable slots | 16 USER slots, waveform import and programmer; waveform data embedded in native patches |
 | Filter modules | One low-pass filter | Two independent filter modules, A and B; each has LP / HP / BP / NOTCH, 12/24 dB slopes, resonance and keytracking |
@@ -172,7 +180,7 @@ The published v0.1.1 checkpoint passed:
 
 The current release also includes performance optimization of the expanded four-LFO / twelve-route engine. Extreme 96 kHz, 32-voice workloads remain intentionally documented as stress cases rather than being hidden through reduced synthesis quality.
 
-Current main adds the factory wavetable bank, shared Shape / Position routing and an exact-audio Wave-modulation CPU fix. See [current development validation](expansion/docs/CURRENT-DEVELOPMENT.md) for the source checkpoint and measured scope. Manual listening and real-host CPU acceptance remain separate from offline validation.
+Current main includes the factory wavetable bank, shared Shape / Position routing, an exact-audio Wave-modulation CPU fix and the v0.1.3 Position/tuning/browser corrections. See [current development validation](expansion/docs/CURRENT-DEVELOPMENT.md) for measured scope. Manual listening and real-host CPU acceptance remain separate from offline validation.
 
 ## Installation
 

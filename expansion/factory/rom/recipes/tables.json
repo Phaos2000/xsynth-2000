@@ -1309,11 +1309,15 @@
       "phase_seed": 0,
       "rms_target": 0.2,
       "source_peak_ceiling": 0.9,
-      "revision": 3,
-      "progression": "Ternary rail melody over a three-cycle root",
+      "revision": 5,
+      "progression": "Six pronounced stepped digital shapes: terraces, edges, pulse, fold, counter and odd/even rails over a stable root",
       "intentional_return": true,
       "held_states": true,
-      "dc_policy": "source DC subtraction then offline per-frame RMS .20; no runtime normalization; PCM8"
+      "dc_policy": "source DC subtraction then offline per-frame RMS .20; no runtime normalization; PCM8",
+      "position_motion": {
+        "kind": "six strong digital shape states",
+        "rootBin_unchanged": 3
+      }
     },
     {
       "id": 52,
@@ -1414,9 +1418,9 @@
       "phase_seed": 0,
       "rms_target": 0.2,
       "source_peak_ceiling": 0.9,
-      "revision": 4,
-      "progression": "Fixed just major triad; root/third/fifth remain audible while octave colour changes",
-      "intentional_return": true,
+      "revision": 5,
+      "progression": "Major triad rises through octave voicings over a low root pedal",
+      "intentional_return": false,
       "held_states": false,
       "dc_policy": "source DC subtraction and offline RMS .20; PCM8; no runtime auto-gain",
       "pitch_bins": [
@@ -1424,7 +1428,34 @@
         20,
         24
       ],
-      "tuning": "simple exact just ratios with octave-spaced pentatonic colour notes"
+      "tuning": "simple exact just ratios with octave-spaced pentatonic colour notes",
+      "position_motion": {
+        "kind": "octave voice-leading",
+        "knots": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            1,
+            1
+          ],
+          [
+            1,
+            1,
+            1
+          ]
+        ],
+        "new_pitch_classes": false,
+        "approved_opening_exact": true
+      }
     },
     {
       "id": 57,
@@ -1441,9 +1472,9 @@
       "phase_seed": 0,
       "rms_target": 0.2,
       "source_peak_ceiling": 0.9,
-      "revision": 4,
-      "progression": "Fixed just minor triad; root/minor third/fifth with warm overtone exchange",
-      "intentional_return": true,
+      "revision": 5,
+      "progression": "Minor triad descends through lower inner voices, then lifts the fifth",
+      "intentional_return": false,
       "held_states": false,
       "dc_policy": "source DC subtraction and offline RMS .20; PCM8; no runtime auto-gain",
       "pitch_bins": [
@@ -1451,7 +1482,34 @@
         24,
         30
       ],
-      "tuning": "simple exact just ratios with octave-spaced pentatonic colour notes"
+      "tuning": "simple exact just ratios with octave-spaced pentatonic colour notes",
+      "position_motion": {
+        "kind": "octave voice-leading",
+        "knots": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            -1
+          ],
+          [
+            0,
+            -1,
+            -1
+          ],
+          [
+            0,
+            -1,
+            0
+          ]
+        ],
+        "new_pitch_classes": false,
+        "approved_opening_exact": true
+      }
     },
     {
       "id": 58,
@@ -1468,8 +1526,8 @@
       "phase_seed": 0,
       "rms_target": 0.2,
       "source_peak_ceiling": 0.9,
-      "revision": 4,
-      "progression": "Fixed suspended fourth chord; no minor/major third or changing pitch collection",
+      "revision": 5,
+      "progression": "Suspended fourth opens in contrary motion and returns to its original voicing",
       "intentional_return": true,
       "held_states": false,
       "dc_policy": "source DC subtraction and offline RMS .20; PCM8; no runtime auto-gain",
@@ -1478,7 +1536,34 @@
         32,
         36
       ],
-      "tuning": "simple exact just ratios with octave-spaced pentatonic colour notes"
+      "tuning": "simple exact just ratios with octave-spaced pentatonic colour notes",
+      "position_motion": {
+        "kind": "octave voice-leading",
+        "knots": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            0
+          ],
+          [
+            0,
+            1,
+            -1
+          ],
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        "new_pitch_classes": false,
+        "approved_opening_exact": true
+      }
     },
     {
       "id": 59,
@@ -1495,9 +1580,9 @@
       "phase_seed": 0,
       "rms_target": 0.2,
       "source_peak_ceiling": 0.9,
-      "revision": 4,
-      "progression": "Open major-pentatonic C-G-D-E-A voicing; root/third/fifth anchor softer second/sixth",
-      "intentional_return": true,
+      "revision": 5,
+      "progression": "Major-pentatonic upper voice rises C-D-E-G-A above the anchored harmony",
+      "intentional_return": false,
       "held_states": false,
       "dc_policy": "source DC subtraction and offline RMS .20; PCM8; no runtime auto-gain",
       "pitch_bins": [
@@ -1507,7 +1592,19 @@
         60,
         80
       ],
-      "tuning": "simple exact just ratios with octave-spaced pentatonic colour notes"
+      "tuning": "simple exact just ratios with octave-spaced pentatonic colour notes",
+      "position_motion": {
+        "kind": "pentatonic melodic voice",
+        "knots": [
+          48,
+          54,
+          60,
+          72,
+          80
+        ],
+        "new_pitch_classes": false,
+        "approved_opening_exact": true
+      }
     },
     {
       "id": 60,
@@ -1524,11 +1621,15 @@
       "phase_seed": 0,
       "rms_target": 0.2,
       "source_peak_ceiling": 0.9,
-      "revision": 3,
-      "progression": "Non-octave beating cluster with shifting dissonance",
+      "revision": 5,
+      "progression": "Stable C4 pitch anchor with quieter non-octave cluster populations tilting around it",
       "intentional_return": true,
       "held_states": false,
-      "dc_policy": "source DC subtraction then offline per-frame RMS .20; no runtime normalization; PCM8"
+      "dc_policy": "source DC subtraction then offline per-frame RMS .20; no runtime normalization; PCM8",
+      "position_motion": {
+        "kind": "C4 anchor held above moving non-octave populations",
+        "rootBin_unchanged": 16
+      }
     },
     {
       "id": 61,
@@ -1545,9 +1646,9 @@
       "phase_seed": 0,
       "rms_target": 0.2,
       "source_peak_ceiling": 0.9,
-      "revision": 4,
-      "progression": "Open minor-pentatonic C-G-Eb-F-Bb voicing; root/third/fifth anchor softer fourth/seventh",
-      "intentional_return": true,
+      "revision": 5,
+      "progression": "Minor-pentatonic upper voice descends Bb-G-F-Eb-C above the anchored harmony",
+      "intentional_return": false,
       "held_states": false,
       "dc_policy": "source DC subtraction and offline RMS .20; PCM8; no runtime auto-gain",
       "pitch_bins": [
@@ -1557,7 +1658,19 @@
         80,
         108
       ],
-      "tuning": "simple exact just ratios with octave-spaced pentatonic colour notes"
+      "tuning": "simple exact just ratios with octave-spaced pentatonic colour notes",
+      "position_motion": {
+        "kind": "pentatonic melodic voice",
+        "knots": [
+          108,
+          90,
+          80,
+          72,
+          60
+        ],
+        "new_pitch_classes": false,
+        "approved_opening_exact": true
+      }
     },
     {
       "id": 62,
@@ -1642,6 +1755,90 @@
       "intentional_return": true,
       "held_states": true,
       "dc_policy": "source DC subtraction then offline per-frame RMS .20; no runtime normalization; PCM8"
+    },
+    {
+      "id": 66,
+      "label": "19 EDO RISE",
+      "family": "HARMONY",
+      "operation": "original_wave_rom",
+      "parameters": {
+        "folder": "HARMONY",
+        "voice": 5
+      },
+      "frames": 16,
+      "cycle_length": 256,
+      "rootBin": 1,
+      "phase_seed": 0,
+      "rms_target": 0.2,
+      "source_peak_ceiling": 0.9,
+      "revision": 1,
+      "progression": "Position ascends through all 19 equal octave divisions; precise ratio2^(degree/19) applied to oscillator clock",
+      "position_tuning": {
+        "divisions": 19,
+        "period": 2,
+        "degree_policy": "nearest integer Position*divisions",
+        "applies_to": "whole oscillator; factory ROM identity only",
+        "keyboard_retuned": false
+      },
+      "intentional_return": false,
+      "held_states": false,
+      "dc_policy": "offline RMS .20; no runtime auto-gain"
+    },
+    {
+      "id": 67,
+      "label": "24 EDO RISE",
+      "family": "HARMONY",
+      "operation": "original_wave_rom",
+      "parameters": {
+        "folder": "HARMONY",
+        "voice": 6
+      },
+      "frames": 16,
+      "cycle_length": 256,
+      "rootBin": 1,
+      "phase_seed": 0,
+      "rms_target": 0.2,
+      "source_peak_ceiling": 0.9,
+      "revision": 1,
+      "progression": "Position ascends through all 24 equal octave divisions; precise ratio2^(degree/24) applied to oscillator clock",
+      "position_tuning": {
+        "divisions": 24,
+        "period": 2,
+        "degree_policy": "nearest integer Position*divisions",
+        "applies_to": "whole oscillator; factory ROM identity only",
+        "keyboard_retuned": false
+      },
+      "intentional_return": false,
+      "held_states": false,
+      "dc_policy": "offline RMS .20; no runtime auto-gain"
+    },
+    {
+      "id": 68,
+      "label": "31 EDO RISE",
+      "family": "HARMONY",
+      "operation": "original_wave_rom",
+      "parameters": {
+        "folder": "HARMONY",
+        "voice": 7
+      },
+      "frames": 16,
+      "cycle_length": 256,
+      "rootBin": 1,
+      "phase_seed": 0,
+      "rms_target": 0.2,
+      "source_peak_ceiling": 0.9,
+      "revision": 1,
+      "progression": "Position ascends through all 31 equal octave divisions; precise ratio2^(degree/31) applied to oscillator clock",
+      "position_tuning": {
+        "divisions": 31,
+        "period": 2,
+        "degree_policy": "nearest integer Position*divisions",
+        "applies_to": "whole oscillator; factory ROM identity only",
+        "keyboard_retuned": false
+      },
+      "intentional_return": false,
+      "held_states": false,
+      "dc_policy": "offline RMS .20; no runtime auto-gain"
     }
   ],
   "schema": 1

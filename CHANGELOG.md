@@ -1,3 +1,33 @@
+# Xsynth 2000 0.1.3
+
+- Added 19 EDO RISE, 24 EDO RISE and 31 EDO RISE to Harmony, bringing the bank
+  to 69 tables. Position traverses every equal-division step from the played
+  note to its octave. A precise pitch map applies only to these three factory
+  identities; existing tables and USER playback keep their pitch behaviour.
+- Preserved the exact approved opening frame of all five new harmony tables,
+  adding rising major voicings, descending minor voices, returning suspended
+  motion and ascending/descending pentatonic upper lines across Position.
+- Made RAIL STEPS traverse six stronger digital shapes with a pitched core.
+- Made the played-note component of TILT CLUSTER consistently dominant over
+  its non-octave cluster texture. Its C4 reference and rootBin remain correct.
+- Unified all 69 factory tables in nine shared folders across the ROM picker
+  and waveform programmer. Stored table IDs and provenance families stay intact.
+- Fixed destination-first matrix editing: selected destinations display and
+  remain checked even with Source OFF; selecting a target never enables a source.
+- Retained the other 59 complete playback records, including all original 36,
+  PACKET RELAY and the three digital noise types, without changes.
+- Added native motion/tuning, complete folder/menu and painted-label regressions.
+- Verified full microtonal step coverage, octave endpoints, Position cache
+  changes and scalar/SIMD/HOLD equality across sample modes and sample rates.
+- Listed Scala/`.tun` keyboard-tuning import as future work; it is not included.
+
+The harmony tables share some chord tones with older PAD chords; their new
+voicing/scale trajectories distinguish their intended role. Audible uniqueness
+and the revised motion remain subject to manual listening. No lossy storage,
+runtime auto-gain or compression change is part of this revision.
+
+---
+
 # Xsynth 2000 0.1.2
 
 - Added the 66-table factory ROM and waveform folders, including 30 original

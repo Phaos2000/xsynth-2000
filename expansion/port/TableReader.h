@@ -7,6 +7,7 @@
 #include <vector>
 #include <fstream>
 #include <stdexcept>
+#include "PositionTuning.h"
 #if defined(_MSC_VER)
 #define P8_INLINE __forceinline
 #else
@@ -127,7 +128,8 @@ struct ClockHead {
   Config config{};double phase=0,frequency=0,lastFrequency=-1,lastSr=-1;BandChoice band{};
   double lastRootHz=-1,lastClockSr=-1,increment=0;
   void assign(Config c,double p){config=c;phase=p;lastFrequency=lastSr=lastRootHz=lastClockSr=-1;}
-  P8_INLINE void clock(double rootHz,double sr){
+  P8_INLINE void clock(double rootHz,double sr,float position=0){
+    rootHz=positionTuning::frequency(config.table->id,rootHz,position);
     if(rootHz!=lastRootHz||sr!=lastClockSr){frequency=cycleRate(rootHz,*config.table);increment=frequency/sr;lastRootHz=rootHz;lastClockSr=sr;}
     double advanced=phase+increment;
     // Most audio-rate increments remain inside this already-wrapped cycle.
@@ -152,7 +154,7 @@ struct ClockTransition {
   void start(Config c){target.assign(c,transfer(current.phase,current.config.table->rootBin,c.table->rootBin,mapping));active=true;progress=0;}
   void request(Config c){if(active){pending=c;hasPending=c!=target.config;return;}if(c!=current.config)start(c);}
   P8_INLINE float next(double rootHz,float position,double sr,ReadStats*s=nullptr){
-    current.clock(rootHz,sr);if(active)target.clock(rootHz,sr);
+    current.clock(rootHz,sr,position);if(active)target.clock(rootHz,sr,position);
     FrameChoice frames=chooseFrames(*current.config.table,position,current.config.frame,s);
     if(!active)return current.evaluate(frames,sr,s);
     float weight=float(progress)/(length-1),value=0;

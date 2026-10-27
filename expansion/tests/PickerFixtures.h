@@ -80,11 +80,11 @@ inline BOOL WINAPI fixtureMenu(HMENU menu, UINT flags, int, int, int, HWND owner
     if(expectedDestination>=0)verifyDestinationMenu(menu,expectedDestination);
     if(!expectedVcoLabels.empty()){
       std::vector<std::string> leaves;std::vector<UINT>commands;
-      if(expectedVcoLabels.size()==66){
-        const char*folders[]={"FACTORY ROM","CORE MOTION","MODULATION","SPECTRAL MOTION","DIGITAL TONES","METAL && KEYS","HARMONY","SFX"};
-        check(GetMenuItemCount(menu)==8,"ROM folder inventory");
-        const int expectedCounts[]={36,4,5,4,3,4,5,5};
-        for(int group=0;group<8;++group){char folder[128]{};GetMenuStringA(menu,group,folder,sizeof folder,MF_BYPOSITION);check(std::string(folder)==folders[group],"ROM folder label/order");
+      if(expectedVcoLabels.size()==69){
+        const char*folders[]={"SPECTRAL","PULSE","FORMANT","DIGITAL","MODULATION","INSTRUMENTS","PAD","HARMONY","SFX"};
+        check(GetMenuItemCount(menu)==9,"ROM folder inventory");
+        const int expectedCounts[]={9,3,3,5,6,13,11,14,5};
+        for(int group=0;group<9;++group){char folder[128]{};GetMenuStringA(menu,group,folder,sizeof folder,MF_BYPOSITION);check(std::string(folder)==folders[group],"ROM folder label/order");
           auto child=GetSubMenu(menu,group);check(child&&GetMenuItemCount(child)==expectedCounts[group],"ROM folder leaf count");
           for(int i=0;i<GetMenuItemCount(child);++i){char label[128]{};GetMenuStringA(child,i,label,sizeof label,MF_BYPOSITION);leaves.emplace_back(label);commands.push_back(GetMenuItemID(child,i));}
         }

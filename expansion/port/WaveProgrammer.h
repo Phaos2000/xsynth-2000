@@ -36,7 +36,7 @@ class WaveProgrammer {
   }
   void drawCombo(HWND control,HDC dc){RECT r;GetClientRect(control,&r);const auto&style=theme::style(owner.currentTheme());auto color=[](uint32_t rgb){auto c=theme::unpack(rgb);return RGB(int(c.r),int(c.g),int(c.b));};HBRUSH brush=CreateSolidBrush(color(style.fieldFace));FillRect(dc,&r,brush);DeleteObject(brush);HPEN edge=CreatePen(PS_SOLID,std::max(1,z(1)),color(style.bevelShadow));auto oldPen=SelectObject(dc,edge);auto oldBrush=SelectObject(dc,GetStockObject(NULL_BRUSH));Rectangle(dc,r.left,r.top,r.right,r.bottom);SelectObject(dc,oldBrush);SelectObject(dc,oldPen);DeleteObject(edge);int index=int(SendMessageW(control,CB_GETCURSEL,0,0));wchar_t text[512]{};if(index>=0)SendMessageW(control,CB_GETLBTEXT,index,LPARAM(text));SetTextColor(dc,color(style.readoutText));SetBkMode(dc,TRANSPARENT);auto oldFont=SelectObject(dc,font);auto label=selector::textRect(r,dpi/96.);DrawTextW(dc,text,-1,&label,DT_CENTER|DT_SINGLELINE|DT_VCENTER|DT_END_ELLIPSIS|DT_NOPREFIX);SelectObject(dc,oldFont);selector::drawArrow(dc,r,dpi/96.,color(style.readoutText),color(style.bevelSecondary));}
   static LRESULT CALLBACK comboProc(HWND c,UINT msg,WPARAM wp,LPARAM lp){auto*self=static_cast<WaveProgrammer*>(GetPropW(c,L"XsynthComboOwner"));auto previous=reinterpret_cast<WNDPROC>(GetPropW(c,L"XsynthComboProc"));if(msg==WM_PAINT){PAINTSTRUCT ps;auto dc=BeginPaint(c,&ps);self->drawCombo(c,dc);EndPaint(c,&ps);return 0;}if(msg==WM_PRINT||msg==WM_PRINTCLIENT){self->drawCombo(c,HDC(wp));return 0;}if(msg==WM_ERASEBKGND)return 1;auto result=CallWindowProcW(previous,c,msg,wp,lp);if(msg==CB_SETCURSEL||msg==CB_SHOWDROPDOWN||msg==WM_ENABLE||msg==WM_SETFOCUS||msg==WM_KILLFOCUS||msg==WM_LBUTTONDOWN||msg==WM_LBUTTONUP||msg==WM_LBUTTONDBLCLK||msg==WM_MOUSEWHEEL||msg==WM_KEYDOWN||msg==WM_KEYUP){InvalidateRect(c,nullptr,FALSE);UpdateWindow(c);}if(msg==WM_NCDESTROY){RemovePropW(c,L"XsynthComboOwner");RemovePropW(c,L"XsynthComboProc");}return result;}
-  int selectedSource()const{return SendMessageW(source,CB_GETCURSEL,0,0)==std::size(table::FamilyNames)?1:0;}
+  int selectedSource()const{return SendMessageW(source,CB_GETCURSEL,0,0)==std::size(romMenu::CategoryNames)?1:0;}
   int selectedSlot()const{return int(SendMessageW(slot,CB_GETCURSEL,0,0));}
   void describe(){
     auto s=owner.read();auto users=owner.readAssets?owner.readAssets():table::Document{};
@@ -46,6 +46,7 @@ class WaveProgrammer {
     if(which==1&&index>=0&&index<16&&users.slots[index]){t=&users.slots[index]->playback;name=users.slots[index]->name;}
     char text[384]{};
     if(t){std::snprintf(text,sizeof text,"%s | %d samples x %d frames | rootBin %d",which?"USER | FLOAT32":"FACTORY ROM | 8-BIT PCM",t->length,t->frames,t->rootBin);
+      int edo=which?0:table::positionTuning::divisions(t->id);if(edo){int degree=table::positionTuning::degree(edo,float(s[oscParam(vco,3)]));std::snprintf(text,sizeof text,"%d EDO | DEGREE %d / %d | +%.2f CENTS",edo,degree,edo,1200.*degree/edo);}
       auto f=table::chooseFrames(*t,float(s[oscParam(vco,3)]),table::Frame(discrete(oscParam(vco,5),s[oscParam(vco,5)])));char frameText[96];
       if(s[oscParam(vco,5)]>=.5)std::snprintf(frameText,sizeof frameText,"%d -> %d / %d  (%.1f%%)",f.a+1,f.b+1,t->frames,f.blend*100);else std::snprintf(frameText,sizeof frameText,"%d / %d",f.a+1,t->frames);SetWindowTextA(frameReadout,frameText);
     }else{std::snprintf(text,sizeof text,"EMPTY USER SLOT | SILENT");SetWindowTextA(frameReadout,"EMPTY");}
@@ -56,7 +57,7 @@ class WaveProgrammer {
     auto s=owner.read();auto users=owner.readAssets?owner.readAssets():table::Document{};
     SendMessageW(list,CB_RESETCONTENT,0,0);
     listIds.clear();int bankIndex=int(SendMessageW(source,CB_GETCURSEL,0,0));
-    if(selectedSource()==0){for(int i:romMenu::order(table::factoryBank())){const auto&t=table::factoryBank().tables[i];if(t.familyId==bankIndex){listIds.push_back(i);SendMessageA(list,CB_ADDSTRING,0,LPARAM(t.name.data()));}}}
+    if(selectedSource()==0){for(int i:romMenu::order(table::factoryBank())){const auto&t=table::factoryBank().tables[i];if(romMenu::category(t)==bankIndex){listIds.push_back(i);SendMessageA(list,CB_ADDSTRING,0,LPARAM(t.name.data()));}}}
     else for(int i=0;i<16;++i){std::string name=std::to_string(i+1)+" "+(users.slots[i]?users.slots[i]->name:"EMPTY");listIds.push_back(i);auto unicode=wide(name);SendMessageW(list,CB_ADDSTRING,0,LPARAM(unicode.c_str()));}
     int selection=0;for(size_t i=0;i<listIds.size();++i){int identity=selectedSource()==0?table::factoryBank().tables[listIds[i]].id:listIds[i];if(identity==discrete(oscParam(vco,selectedSource()==0?1:2),s[oscParam(vco,selectedSource()==0?1:2)]))selection=int(i);}
     SendMessageW(target,BM_SETSTATE,vco==0,0);SendMessageW(secondTarget,BM_SETSTATE,vco==1,0);
@@ -87,7 +88,7 @@ class WaveProgrammer {
       auto validated=encodeDocument(state,doc); // Includes aggregate/dedup bounds before publication.
       if(!owner.restoreDocument||!owner.restoreDocument(state,doc))throw std::runtime_error("Document handoff busy or unsupported; retry after current transition");
       owner.lastTableSource[importVco]=2;
-      if(vco==importVco)SendMessageW(source,CB_SETCURSEL,std::size(table::FamilyNames),0);populate();
+      if(vco==importVco)SendMessageW(source,CB_SETCURSEL,std::size(romMenu::CategoryNames),0);populate();
       const auto&t=imported->playback;bool seam=false;for(int f=0;f<t.frames;++f)seam|=std::abs(t.pcm[size_t(f)*t.length]-t.pcm[size_t(f+1)*t.length-1])>.05f;
       if(seam)MessageBoxW(window,L"Imported. A cycle seam is present; samples were preserved.",L"WAVE PROGRAMMER",MB_OK);
     }catch(const std::exception&e){MessageBoxA(window,e.what(),"WAVE PROGRAMMER",MB_ICONERROR);describe();}
@@ -135,7 +136,7 @@ class WaveProgrammer {
       if(id==4&&code==CBN_SELCHANGE){self->change(oscParam(self->vco,4),SendMessageW(self->sample,CB_GETCURSEL,0,0)/2.);self->describe();}
       if(id==5&&code==CBN_SELCHANGE){self->change(oscParam(self->vco,5),double(SendMessageW(self->frame,CB_GETCURSEL,0,0)));self->describe();}
       if((id==6&&code==EN_KILLFOCUS)||id==14){wchar_t text[32]{};GetWindowTextW(self->position,text,32);wchar_t*end=nullptr;double value=wcstod(text,&end);if(end!=text&&std::isfinite(value))self->change(oscParam(self->vco,3),std::clamp(value/100,0.,1.));self->describe();}
-      if(id==7&&code==CBN_SELENDOK){int index=self->selectedSlot();auto assets=self->owner.readAssets?self->owner.readAssets():table::Document{};if(!assets.slots[index]){SetWindowTextW(self->status,L"EMPTY SLOT SELECTED AS IMPORT TARGET | PLAYBACK UNCHANGED");return 0;}self->change(oscParam(self->vco,2),index/15.);self->tableSource(2);SendMessageW(self->source,CB_SETCURSEL,std::size(table::FamilyNames),0);self->populate();}
+      if(id==7&&code==CBN_SELENDOK){int index=self->selectedSlot();auto assets=self->owner.readAssets?self->owner.readAssets():table::Document{};if(!assets.slots[index]){SetWindowTextW(self->status,L"EMPTY SLOT SELECTED AS IMPORT TARGET | PLAYBACK UNCHANGED");return 0;}self->change(oscParam(self->vco,2),index/15.);self->tableSource(2);SendMessageW(self->source,CB_SETCURSEL,std::size(romMenu::CategoryNames),0);self->populate();}
       if(id==10||id==11)self->load(id==10);
       if(id==12)ShowWindow(w,SW_HIDE);return 0;
     }
@@ -146,7 +147,7 @@ public:
   ~WaveProgrammer(){if(window)DestroyWindow(window);if(instance)UnregisterClassW(L"Xsynth2000WaveProgrammer",instance);if(font)DeleteObject(font);if(background)DeleteObject(background);}
 
   void refreshTheme(){if(background)DeleteObject(background);auto color=theme::unpack(theme::style(owner.currentTheme()).panelBottom);background=CreateSolidBrush(RGB(int(color.r),int(color.g),int(color.b)));if(window){InvalidateRect(window,nullptr,TRUE);for(HWND c=GetWindow(window,GW_CHILD);c;c=GetWindow(c,GW_HWNDNEXT))InvalidateRect(c,nullptr,TRUE);}}
-  void selectBank(){auto s=owner.read();int family=0;if(s[oscParam(vco,0)]>=.75)family=int(std::size(table::FamilyNames));else{int id=discrete(oscParam(vco,1),s[oscParam(vco,1)]);for(const auto&t:table::factoryBank().tables)if(t.id==id)family=t.familyId;}SendMessageW(source,CB_SETCURSEL,family,0);}
+  void selectBank(){auto s=owner.read();int family=0;if(s[oscParam(vco,0)]>=.75)family=int(std::size(romMenu::CategoryNames));else{int id=discrete(oscParam(vco,1),s[oscParam(vco,1)]);for(const auto&t:table::factoryBank().tables)if(t.id==id)family=romMenu::category(t);}SendMessageW(source,CB_SETCURSEL,family,0);}
   void open(HWND parent,int oscillator,bool visible=true){
     vco=oscillator;if(parent&&!IsWindowVisible(parent))visible=false;
     if(!window){dpi=parent?int(GetDpiForWindow(parent)):96;if(dpi<96)dpi=96;
@@ -158,7 +159,7 @@ public:
       child(L"STATIC",L"WAVE PROGRAMMER",0,12,8,456,14,SS_CENTER);
       target=child(L"BUTTON",L"VCO1",1,12,30,222,18);secondTarget=child(L"BUTTON",L"VCO2",13,246,30,222,18);
       child(L"STATIC",L"BANK",0,12,56,222,13);child(L"STATIC",L"TABLE",0,246,56,222,13);
-      source=child(L"COMBOBOX",L"",2,12,70,222,220,CBS_DROPDOWNLIST|WS_VSCROLL);for(auto name:table::FamilyNames)SendMessageA(source,CB_ADDSTRING,0,LPARAM(name));SendMessageW(source,CB_ADDSTRING,0,LPARAM(L"USER"));
+      source=child(L"COMBOBOX",L"",2,12,70,222,220,CBS_DROPDOWNLIST|WS_VSCROLL);for(auto name:romMenu::CategoryNames)SendMessageA(source,CB_ADDSTRING,0,LPARAM(name));SendMessageW(source,CB_ADDSTRING,0,LPARAM(L"USER"));
       list=child(L"COMBOBOX",L"",3,246,70,222,220,CBS_DROPDOWNLIST|WS_VSCROLL);
       child(L"STATIC",L"POSITION (%)",0,12,220,222,13);child(L"STATIC",L"FRAME / BLEND",0,246,220,222,13);
       position=child(L"EDIT",L"0",6,12,234,222,18,WS_BORDER);frameReadout=child(L"STATIC",L"",0,246,234,222,18,SS_CENTER|WS_BORDER);

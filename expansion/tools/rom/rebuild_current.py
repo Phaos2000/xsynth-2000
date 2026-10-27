@@ -1,4 +1,4 @@
-"""Verify/rebuild the current 66-table bank from baseline36 and original formulas.
+"""Verify/rebuild the current bank from baseline36 and original formulas.
 Writes only to the requested output directory. Python 3 and NumPy required.
 """
 from pathlib import Path
@@ -34,7 +34,8 @@ def main():
         frames,n=t['pcm'].shape
         directory.append(struct.pack('<HBBHHHHIIIII',t['id'],t['familyId'],0,frames,n,t['rootBin'],0,offset,len(payload),t['id'],zlib.crc32(payload),0));offset+=len(payload)
     tail=b''.join(directory+payloads)
-    bank=struct.pack('<4sHH6I',b'XROM',2,64,66,64,64+32*66,64+len(tail),2,0)+hashlib.sha256(tail).digest()+tail
+    count=len(tables)
+    bank=struct.pack('<4sHH6I',b'XROM',2,64,count,64,64+32*count,64+len(tail),2,0)+hashlib.sha256(tail).digest()+tail
     expected=(root/'factory/rom/factory.xrom').read_bytes()
     assert bank==expected,'Generated bank differs from the checked-in bank'
     data=prepared(tables,hashlib.sha256(bank).digest())
@@ -45,6 +46,6 @@ def main():
     args.output.mkdir(parents=True,exist_ok=True)
     (args.output/'factory.xrom').write_bytes(bank)
     (args.output/'prepared.p8rd').write_bytes(data)
-    print('Verified 66 tables and exact prepared playback data; SHA256 '+hashlib.sha256(bank).hexdigest())
+    print(f'Verified {count} tables and exact prepared playback data; SHA256 '+hashlib.sha256(bank).hexdigest())
 
 if __name__=='__main__':main()

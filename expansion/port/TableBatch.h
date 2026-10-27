@@ -28,8 +28,9 @@ struct MemberTableBatch {
     return select(_mm_load_ps(bits),left,value);
   }
   template<int N> static __m128 XS_MEMBER_VECTORCALL read(Oscillator::Head**heads,int path,__m128 frequency,__m128 phaseMod,float position,double sr,bool*wrapped,const Oscillator::Head*prepared,bool silent=false){
-    alignas(16)float hz[4]{},pm[4]{};_mm_store_ps(hz,frequency);_mm_store_ps(pm,phaseMod);
+    alignas(16)float inputHz[4]{},pm[4]{};_mm_store_ps(inputHz,frequency);_mm_store_ps(pm,phaseMod);double hz[4]{};
     const auto&selection=heads[0]->selection;const auto&t=*selection.data;
+    for(int i=0;i<N;++i)hz[i]=selection.positionFrequency(inputHz[i],position);
     double root=selection.root();
     // Two independent IEEE double divisions per pair, never a reciprocal.
     for(int i=0;i<N;i+=2){bool second=i+1<N;auto&a=*heads[i];

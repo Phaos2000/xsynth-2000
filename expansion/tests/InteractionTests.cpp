@@ -209,7 +209,7 @@ int main(int argc, char **argv) {
           changed.clear();
           int calls = popupCalls;
           popupChoice = choice;
-          if(matrixDestination(c.id)){expectedDestination=routeDestination(state,matrixSlot(c.id));expectedDestinationOff=effectiveSource(state,matrixSlot(c.id))==0;}
+          if(matrixDestination(c.id)){expectedDestination=routeDestination(state,matrixSlot(c.id));expectedDestinationOff=false;}
           injectPointer = true;
           scaledClick(c.x + c.w / 2, c.y + 48 + 8, choice % 2);
           injectPointer = false;
@@ -290,9 +290,9 @@ int main(int argc, char **argv) {
       for(int slot=0;slot<12;++slot)for(int source=0;source<SourceCount;++source){
         state=defaults();if(source<LegacySourceCount)state[matrixId(slot)]=source/10.;else state[SourceExtensionFirst+slot]=(source-10)/3.;state[matrixId(slot,2)]=.91;
         auto c=matrixControls()[slot*3+1];auto before=state;auto expected=state;expected[matrixId(slot)]=0;expected[SourceExtensionFirst+slot]=0;
-        expectedDestination=routeDestination(state,slot);expectedDestinationOff=source==0;popupChoice=DestinationCount+1;
+        expectedDestination=routeDestination(state,slot);expectedDestinationOff=false;popupChoice=DestinationCount+1;
         click(w,int((c.x+c.w/2)*scale),int((c.y+48+8)*scale));pump();check(state==expected&&effectiveSource(state,slot)==0,"Destination Off must disable only its source and extension");
-        expectedDestinationOff=true;popupChoice=0;click(w,int((c.x+c.w/2)*scale),int((c.y+48+8)*scale));pump();check(state==expected,"Cancelled Off menu changed route");
+        expectedDestinationOff=false;popupChoice=0;click(w,int((c.x+c.w/2)*scale),int((c.y+48+8)*scale));pump();check(state==expected,"Cancelled Off menu changed route");
         expectedDestination=-1;expectedDestinationOff=false;popupChoice=-999;++clearChecks;
       }
     }
@@ -319,12 +319,12 @@ int main(int argc, char **argv) {
         }
       }
       for(auto c:matrixControls())if(matrixDestination(c.id))for(int start=0;start<DestinationCount;++start)if(start!=42&&start!=43)for(int delta:{-120,120,0}){
-        state=defaults();expectedDestination=routeDestination(state,matrixSlot(c.id));expectedDestinationOff=effectiveSource(state,matrixSlot(c.id))==0;popupChoice=start+1;click(w,int((c.x+c.w/2)*scale),int((c.y+48+8)*scale));pump();popupChoice=-999;expectedDestination=-1;
+        state=defaults();expectedDestination=routeDestination(state,matrixSlot(c.id));expectedDestinationOff=false;popupChoice=start+1;click(w,int((c.x+c.w/2)*scale),int((c.y+48+8)*scale));pump();popupChoice=-999;expectedDestination=-1;
         check(routeDestination(state,matrixSlot(c.id))==start,"Destination menu setup mismatch");
         int step=delta<0?1:delta>0?-1:0,position=start>=44?start-2:start;
         position=std::clamp(position+step,0,DestinationCount-3);int next=position>=42?position+2:position;
         sendWheel({c.x,c.y,c.w,18},delta,true);check(routeDestination(state,matrixSlot(c.id))==next,"Destination wheel/menu order mismatch");
-        auto wheeled=state;expectedDestination=next;expectedDestinationOff=effectiveSource(state,matrixSlot(c.id))==0;popupChoice=next+1;click(w,int((c.x+c.w/2)*scale),int((c.y+48+8)*scale));pump();popupChoice=-999;expectedDestination=-1;
+        auto wheeled=state;expectedDestination=next;expectedDestinationOff=false;popupChoice=next+1;click(w,int((c.x+c.w/2)*scale),int((c.y+48+8)*scale));pump();popupChoice=-999;expectedDestination=-1;
         check(state==wheeled,"Destination wheel/menu encoding mismatch");++directionChecks;
       }
     }
@@ -332,9 +332,10 @@ int main(int argc, char **argv) {
     check(destinationMenuChecks>0,"Grouped native destination menus were not inspected");
     std::cout<<"PASS "<<destinationMenuChecks<<" grouped native destination menus;44 visible leaves and stable historical aliases\n";
     const auto romOrder=romMenu::order(table::factoryBank());
-    check(romOrder.size()==66,"Review changed factory menu inventory");
-    for(int i=0;i<36;++i){int expected=i<=20?i:i==21?35:i-1;
-      check(table::factoryBank().tables[romOrder[i]].id==expected,"ROM display adjacency changed unrelated identities/order");}
+    check(romOrder.size()==69,"Review changed factory menu inventory");
+    const int expectedRomOrder[]={0,1,7,36,37,45,46,47,48,2,38,39,3,15,26,4,5,49,50,51,6,40,41,42,43,44,
+      8,9,10,11,12,13,14,16,17,52,53,54,55,18,19,20,35,21,22,23,24,25,27,28,29,30,31,32,33,34,56,57,58,59,61,66,67,68,60,62,63,64,65};
+    for(int i=0;i<69;++i)check(table::factoryBank().tables[romOrder[i]].id==expectedRomOrder[i],"Consolidated ROM category order/identity");
     // Explicit per-VCO family button is the only main-panel OSC/TABLE route.
     for(int percent:{100,125,150,200}){double scale=percent/100.;editor.resize(xs::NativeWidth*percent/100,568*percent/100);
       auto fieldClick=[&](Bounds b){click(w,int((b.x+b.w/2)*scale),int((b.y+48+b.h/2)*scale));pump();};
@@ -362,7 +363,7 @@ int main(int argc, char **argv) {
           popupChoice=5;int calls=popupCalls;auto saved=state;
           SendMessageW(w,rapid?WM_LBUTTONDBLCLK:WM_LBUTTONDOWN,MK_LBUTTON,MAKELPARAM(tx,ty));
           check(popupCalls==calls&&state==saved&&GetCapture()==w,"Table menu opened while opening button held");
-          SendMessageW(w,WM_LBUTTONUP,0,MAKELPARAM(tx,ty));saved[oscParam(o,1)]=table::factoryBank().tables[4].id/65535.;
+          SendMessageW(w,WM_LBUTTONUP,0,MAKELPARAM(tx,ty));saved[oscParam(o,1)]=table::factoryBank().tables[romOrder[4]].id/65535.;
           check(popupCalls==calls+1&&state==saved&&GetCapture()!=w,"Completed table click did not open/choose/release capture");
         }
         for(int cancel:{0,1,2,3}){
@@ -374,6 +375,37 @@ int main(int argc, char **argv) {
         popupChoice=-999;
       }
     }
+    // Both waveform browsers use the same consolidated taxonomy, with ROM
+    // identities unchanged and USER remaining its separate import/storage bank.
+    editor.resize(NativeWidth,568);
+    int programmerChecks=0;const int categoryCounts[]={9,3,3,5,6,13,11,14,5};
+    for(int o=0;o<2;++o)for(const auto&t:table::factoryBank().tables){
+      state=defaults();state[oscParam(o,0)]=.5;state[oscParam(o,1)]=t.id/65535.;auto b=vcoGrid::pgm(o);
+      click(w,b.x+b.w/2,b.y+48+8);pump();auto pgm=FindWindowW(L"Xsynth2000WaveProgrammer",nullptr);check(pgm!=nullptr,"Programmer missing");
+      auto bank=GetDlgItem(pgm,2),list=GetDlgItem(pgm,3);int group=romMenu::category(t);
+      check(SendMessageW(bank,CB_GETCOUNT,0,0)==10&&SendMessageW(bank,CB_GETCURSEL,0,0)==group,"Programmer category selection/inventory mismatch");
+      char name[96]{};SendMessageA(bank,CB_GETLBTEXT,group,LPARAM(name));check(std::string(name)==romMenu::CategoryNames[group],"Programmer category caption mismatch");
+      check(SendMessageW(list,CB_GETCOUNT,0,0)==categoryCounts[group],"Programmer category table count mismatch");
+      SendMessageA(list,CB_GETLBTEXT,SendMessageW(list,CB_GETCURSEL,0,0),LPARAM(name));check(std::string(name)==t.name.data(),"Programmer selected wrong ROM identity");++programmerChecks;
+    }
+    std::cout<<"PASS "<<programmerChecks<<" programmer category/identity checks across both VCOs\n";
+    // Destination-first workflow: actual painted text changes with Source OFF,
+    // survives state roundtrip, and is identical after enabling that source.
+    int pendingDestinationChecks=0;
+    for(int percent:{100,200}){double scale=percent/100.;int width=NativeWidth*percent/100,height=568*percent/100;editor.resize(width,height);
+      for(int slot=0;slot<MatrixSlots;++slot){state=defaults();auto c=matrixControls()[slot*3+1];
+        auto crop=[&](){auto image=capture(w,width,height);std::vector<uint32_t> result;auto b=fieldBounds(c);
+          for(int y=int((b.y+48+2)*scale);y<int((b.y+48+b.h-2)*scale);++y)for(int x=int((b.x+3)*scale);x<int((b.x+b.w-15)*scale);++x)result.push_back(image[y*width+x]);return result;};
+        auto before=crop();expectedDestination=routeDestination(state,slot);expectedDestinationOff=false;popupChoice=9;
+        click(w,int((c.x+c.w/2)*scale),int((c.y+48+8)*scale));pump();popupChoice=-999;expectedDestination=-1;
+        check(effectiveSource(state,slot)==0&&routeDestination(state,slot)==8,"Destination-first selection enabled source or lost target");
+        auto off=crop();check(before!=off,"Destination-first painted label stayed OFF/default");
+        State restored;auto bytes=encode(state);check(decode(bytes.data(),bytes.size(),restored)&&restored==state,"Inactive destination did not survive state roundtrip");
+        state[matrixId(slot)]=.1;check(crop()==off,"Destination label depends on source enablement");++pendingDestinationChecks;
+      }
+    }
+    std::cout<<"PASS "<<pendingDestinationChecks<<" destination-first painted labels and saved targets; source remains OFF until explicitly selected\n";
+    if(menusOnly){std::cout<<"PASS unified ROM folders, all menu identities/wheels and destination-first workflow\n";editor.close();DestroyWindow(parent);return 0;}
     pointerScale=1;editor.resize(xs::NativeWidth,568);auto heldState=state;popupChoice=0;fixtureHeld=true;SendMessageW(w,WM_LBUTTONDOWN,MK_LBUTTON,MAKELPARAM(70,moduleGrid::FirstSelectors+48+8));check(GetCapture()==w,"Dismissal did not own held release");SendMessageW(w,WM_LBUTTONDOWN,MK_LBUTTON,MAKELPARAM(684,247));fixtureHeld=false;SendMessageW(w,WM_LBUTTONUP,0,MAKELPARAM(684,247));popupChoice=-999;check(state==heldState&&GetCapture()!=w,"Held dismissal clicked through or retained capture");
     editor.resize(xs::NativeWidth, 568);
     editor.setTheme(theme::Id::Steel);
